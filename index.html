@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<meta name="theme-color" content="#0b0d1a" />
+<meta name="description" content="Temporizador temático con música de Spotify para dirigir partidas de Blood on the Clocktower." />
+<title>Clocktower Timer · Blood on the Clocktower</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🩸</text></svg>" />
+<link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+<div id="app" data-phase="night">
+
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">🩸</span> Clocktower Timer</div>
+    <div class="topbar-status">
+      <span id="spotify-status" class="pill pill-off">Spotify: sin conectar</span>
+      <span id="device-status" class="pill pill-muted" hidden></span>
+    </div>
+    <div class="topbar-actions">
+      <button id="btn-fullscreen" class="icon-btn" title="Pantalla completa">⛶</button>
+      <button id="btn-settings" class="icon-btn">⚙️ Ajustes</button>
+    </div>
+  </header>
+
+  <main class="stage">
+    <div class="phase-head">
+      <span id="phase-icon" class="phase-icon">🌙</span>
+      <h1 id="phase-label">Noche 1</h1>
+    </div>
+
+    <div id="clock" class="clock">10:00</div>
+
+    <div class="progress"><div id="progress-bar" class="progress-bar"></div></div>
+
+    <div id="now-playing" class="now-playing">—</div>
+
+    <div class="controls">
+      <button id="btn-minus" class="ctl">−1 min</button>
+      <button id="btn-play" class="ctl ctl-primary">▶ Iniciar</button>
+      <button id="btn-plus" class="ctl">+1 min</button>
+    </div>
+
+    <div class="controls controls-secondary">
+      <button id="btn-prev" class="ctl ctl-ghost">⏮ Fase anterior</button>
+      <button id="btn-reset" class="ctl ctl-ghost">↺ Reiniciar fase</button>
+      <button id="btn-next" class="ctl ctl-ghost">Siguiente fase ⏭</button>
+      <button id="btn-music" class="ctl ctl-ghost">⏸ Música</button>
+      <button id="btn-skip-track" class="ctl ctl-ghost">⏭ Canción</button>
+      <label class="vol">
+        <span>🔊</span>
+        <input id="volume" type="range" min="0" max="100" step="1" value="60" />
+        <output id="volume-out">60</output>
+      </label>
+    </div>
+  </main>
+
+  <div id="toast" class="toast" hidden></div>
+</div>
+
+<!-- ───────────────────────── Ajustes ───────────────────────── -->
+<div id="scrim" class="scrim" hidden></div>
+<aside id="drawer" class="drawer" hidden aria-label="Ajustes">
+  <header class="drawer-head">
+    <h2>Ajustes</h2>
+    <button id="btn-close-settings" class="icon-btn">✕</button>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab is-active" data-tab="spotify">Spotify</button>
+    <button class="tab" data-tab="timers">Temporizadores</button>
+    <button class="tab" data-tab="options">Opciones</button>
+  </nav>
+
+  <!-- Spotify -->
+  <section class="tab-panel is-active" data-panel="spotify">
+    <div class="field">
+      <label for="client-id">Client ID de Spotify</label>
+      <input id="client-id" type="text" inputmode="latin" autocomplete="off" spellcheck="false"
+             placeholder="p. ej. 0a1b2c3d4e5f6071829304a5b6c7d8e9" />
+      <p class="hint">Créalo gratis en <b>developer.spotify.com/dashboard</b> y añade esta URL exacta como
+        <i>Redirect URI</i>: <code id="redirect-uri"></code>
+        <button id="btn-copy-redirect" class="mini-btn">Copiar</button>
+      </p>
+    </div>
+    <div class="field row">
+      <button id="btn-connect" class="ctl ctl-primary">Conectar con Spotify</button>
+      <button id="btn-disconnect" class="ctl ctl-ghost">Desconectar</button>
+    </div>
+
+    <hr />
+
+    <div class="field">
+      <label for="playback-target">¿Dónde suena la música?</label>
+      <select id="playback-target">
+        <option value="this">Esta tablet (reproductor integrado)</option>
+        <option value="remote">Otro dispositivo Spotify (altavoz, móvil, PC…)</option>
+      </select>
+      <div id="remote-device-row" class="row" hidden>
+        <select id="device-select"><option value="">— Elige dispositivo —</option></select>
+        <button id="btn-refresh-devices" class="mini-btn">Actualizar</button>
+      </div>
+      <p class="hint">Controlar la reproducción requiere cuenta <b>Spotify Premium</b>.</p>
+    </div>
+
+    <hr />
+
+    <div class="field">
+      <label>Lista para la <b>NOCHE</b> 🌙</label>
+      <div class="row">
+        <select id="playlist-night" class="grow"><option value="">— Sin música —</option></select>
+        <button class="mini-btn btn-preview" data-phase="night">Probar</button>
+      </div>
+      <input id="playlist-night-uri" class="uri-input" type="text" spellcheck="false"
+             placeholder="o pega un enlace/URI de Spotify (playlist, álbum o artista)" />
+    </div>
+
+    <div class="field">
+      <label>Lista para el <b>DÍA</b> ☀️</label>
+      <div class="row">
+        <select id="playlist-day" class="grow"><option value="">— Sin música —</option></select>
+        <button class="mini-btn btn-preview" data-phase="day">Probar</button>
+      </div>
+      <input id="playlist-day-uri" class="uri-input" type="text" spellcheck="false"
+             placeholder="o pega un enlace/URI de Spotify (playlist, álbum o artista)" />
+    </div>
+
+    <div class="field row">
+      <button id="btn-reload-playlists" class="ctl ctl-ghost">↻ Recargar mis listas</button>
+    </div>
+  </section>
+
+  <!-- Temporizadores -->
+  <section class="tab-panel" data-panel="timers">
+    <div class="grid-2">
+      <div class="field">
+        <label for="sch-start">Duración de la 1.ª ronda (min)</label>
+        <input id="sch-start" type="number" min="0" max="120" step="0.5" />
+      </div>
+      <div class="field">
+        <label for="sch-step">Bajar cada ronda (min)</label>
+        <input id="sch-step" type="number" min="0" max="60" step="0.5" />
+      </div>
+      <div class="field">
+        <label for="sch-min">Nunca bajar de (min)</label>
+        <input id="sch-min" type="number" min="0" max="120" step="0.5" />
+      </div>
+      <div class="field">
+        <label for="sch-rounds">Número de rondas</label>
+        <input id="sch-rounds" type="number" min="1" max="30" step="1" />
+      </div>
+      <div class="field">
+        <label for="sch-apply">La progresión se aplica a</label>
+        <select id="sch-apply">
+          <option value="night">La noche</option>
+          <option value="day">El día</option>
+          <option value="both">Ambas fases</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="sch-fixed">La otra fase dura (min)</label>
+        <input id="sch-fixed" type="number" min="0" max="120" step="0.5" />
+      </div>
+    </div>
+
+    <div class="field row">
+      <button id="btn-apply-schedule" class="ctl ctl-primary">Aplicar a todas las rondas</button>
+      <button id="btn-clear-overrides" class="ctl ctl-ghost">Borrar ajustes manuales</button>
+    </div>
+
+    <p class="hint">Edita cualquier casilla para fijar una duración concreta en esa ronda
+      (por ejemplo, noche 1 de 20 minutos). Los valores editados se marcan y se guardan.</p>
+
+    <div class="table-wrap">
+      <table class="schedule">
+        <thead><tr><th>Ronda</th><th>🌙 Noche</th><th>☀️ Día</th><th></th></tr></thead>
+        <tbody id="schedule-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Opciones -->
+  <section class="tab-panel" data-panel="options">
+    <div class="field check">
+      <input id="opt-autoadvance" type="checkbox" />
+      <label for="opt-autoadvance">Pasar solo a la siguiente fase al acabar el tiempo</label>
+    </div>
+    <div class="field check">
+      <input id="opt-autostart" type="checkbox" />
+      <label for="opt-autostart">Arrancar el temporizador automáticamente al cambiar de fase</label>
+    </div>
+    <div class="field check">
+      <input id="opt-alarm" type="checkbox" />
+      <label for="opt-alarm">Campanada al terminar el tiempo</label>
+    </div>
+    <div class="field check">
+      <input id="opt-keepawake" type="checkbox" />
+      <label for="opt-keepawake">Mantener la pantalla encendida</label>
+    </div>
+    <div class="field check">
+      <input id="opt-shuffle" type="checkbox" />
+      <label for="opt-shuffle">Reproducción aleatoria</label>
+    </div>
+    <div class="field check">
+      <input id="opt-resume" type="checkbox" />
+      <label for="opt-resume">Continuar la lista donde se quedó (en vez de empezar de cero)</label>
+    </div>
+
+    <div class="grid-2">
+      <div class="field">
+        <label for="opt-warning">Aviso visual en los últimos (seg)</label>
+        <input id="opt-warning" type="number" min="0" max="300" step="5" />
+      </div>
+      <div class="field">
+        <label for="opt-fade">Fundido entre listas (seg)</label>
+        <input id="opt-fade" type="number" min="0" max="15" step="0.5" />
+      </div>
+      <div class="field">
+        <label for="opt-vol-night">Volumen de noche (%)</label>
+        <input id="opt-vol-night" type="number" min="0" max="100" step="1" />
+      </div>
+      <div class="field">
+        <label for="opt-vol-day">Volumen de día (%)</label>
+        <input id="opt-vol-day" type="number" min="0" max="100" step="1" />
+      </div>
+    </div>
+
+    <hr />
+    <div class="field">
+      <label>Partida</label>
+      <div class="row">
+        <button id="btn-new-game" class="ctl ctl-ghost">↺ Empezar partida de cero</button>
+        <button id="btn-reset-all" class="ctl ctl-ghost danger">Borrar toda la configuración</button>
+      </div>
+      <p class="hint">Atajos de teclado: <b>espacio</b> iniciar/pausar · <b>→</b> siguiente fase ·
+        <b>←</b> fase anterior · <b>R</b> reiniciar fase · <b>F</b> pantalla completa.</p>
+    </div>
+  </section>
+</aside>
+
+<script src="https://sdk.scdn.co/spotify-player.js"></script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
