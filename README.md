@@ -48,7 +48,8 @@ Usa `127.0.0.1`, no `localhost`: Spotify solo acepta `https://` o la dirección 
 ## 3. Configurar la app
 
 1. Abre la app y pulsa **⚙️ Ajustes**.
-2. Pega el **Client ID** y pulsa **Conectar con Spotify**.
+2. El **Client ID** ya viene puesto; si usas tu propia app de Spotify, sustitúyelo.
+   Pulsa **Conectar con Spotify**.
 3. Elige dónde suena la música: *esta tablet* u *otro dispositivo Spotify*.
 4. Elige la lista de la **NOCHE** 🌙 y la del **DÍA** ☀️ (de tus listas, o pegando un enlace
    de Spotify de cualquier playlist, álbum o artista). El botón **Probar** las prueba al vuelo.

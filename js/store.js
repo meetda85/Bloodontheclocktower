@@ -7,7 +7,10 @@ const KEY = 'botc-timer.settings.v1';
 
 export const defaults = {
   spotify: {
-    clientId: '',
+    // Client ID de la app de Spotify del repositorio. En el flujo PKCE no es un
+    // secreto (viaja en la URL de login) y solo funciona desde las Redirect URIs
+    // registradas en el panel de Spotify. Se puede cambiar desde Ajustes.
+    clientId: '4802fa4cf6634a2a9be42e96e04e68b0',
     playbackTarget: 'this',   // 'this' = reproductor integrado | 'remote' = otro dispositivo
     remoteDeviceId: '',
   },
@@ -64,12 +67,16 @@ function merge(base, saved) {
 }
 
 function read() {
+  let value;
   try {
     const raw = localStorage.getItem(KEY);
-    return raw ? merge(defaults, JSON.parse(raw)) : structuredClone(defaults);
+    value = raw ? merge(defaults, JSON.parse(raw)) : structuredClone(defaults);
   } catch {
-    return structuredClone(defaults);
+    value = structuredClone(defaults);
   }
+  // Si se guardó antes de que hubiera Client ID por defecto, lo recuperamos.
+  if (!value.spotify.clientId) value.spotify.clientId = defaults.spotify.clientId;
+  return value;
 }
 
 export const settings = read();
