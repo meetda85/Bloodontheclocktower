@@ -2,7 +2,9 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [main, master]
+    # GitHub Pages solo admite despliegues desde la rama por defecto del
+    # repositorio, que aquí es la rama de trabajo de Claude.
+    branches: [main, master, 'claude/spotify-blood-clock-tower-app-cic5b5']
   workflow_dispatch:
 
 permissions:
