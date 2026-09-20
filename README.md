@@ -5,10 +5,13 @@ Temporizador por fases con banda sonora de **Spotify** para dirigir partidas de
 
 - 🌙 **La noche no lleva reloj**: suena la lista nocturna mientras despiertas a los
   personajes, y la cierras tú con un botón cuando has terminado.
-- 💀 Al cerrarla suena un **golpe oscuro y siniestro**, la música baja a media luz y
-  tienes el escenario en silencio para contar lo que ha pasado durante la noche.
-- ☀️ Pulsas *Iniciar el día* y arranca la cuenta atrás de debate con la lista diurna.
-- 🔔 Cuando se acaba el día tocan **campanas graves de catedral** y cae la noche siguiente.
+- 💀 Al cerrarla suena un **golpe oscuro y siniestro** y entra la lista del día
+  **subiendo poco a poco durante 15 segundos**, mientras cuentas lo que ha pasado.
+- ☀️ Pulsas *Iniciar temporizador del día*: la música salta al 100 % (aunque la
+  narración haya sido corta) y arranca la cuenta atrás de debate.
+- 🔔 Tres segundos antes del cero la música **se apaga y se pausa**; al llegar a cero
+  suenan **tres campanadas graves de catedral** y cae la noche siguiente.
+- 🔊 La música suena siempre al 100 %; el deslizador queda para ajustar en caliente.
 - ⏱️ Cuenta atrás gigante, pensada para verse desde el otro lado de la mesa.
 - 📉 Progresión automática configurable: por defecto **10 min el primer día, −2 min por
   ronda, con suelo de 6 min**.
@@ -72,9 +75,12 @@ El botón grande hace siempre lo que toca en ese momento:
 | Paso | Qué ves | Qué pasa al pulsarlo |
 |---|---|---|
 | Noche (parada) | ▶ Empezar la noche | arranca la lista nocturna y el cronómetro |
-| Noche (en curso) | 🌒 Terminar la noche | golpe siniestro, música a media luz |
-| Amanece | ☀️ Iniciar el día | lista diurna y cuenta atrás del día |
+| Noche (en curso) | 🌒 Finalizó la noche | golpe siniestro y entra el día subiendo |
+| Amanece | ☀️ Iniciar temporizador del día | música al 100 % y cuenta atrás del día |
 | Día | ⏸ Pausa / ▶ Iniciar | para y reanuda el reloj |
+
+En la noche y al amanecer ese botón ocupa el sitio del reloj, bien grande; el tiempo
+transcurrido de la noche queda debajo, en pequeño, como dato de apoyo.
 
 Y los botones de apoyo:
 
@@ -93,6 +99,10 @@ Y los botones de apoyo:
 Cuando el día llega a cero suenan las campanas y, si está activado *caer solo en la noche
 siguiente*, la app entra en la noche con su música. Así la noche y el día suenan siempre
 distintos sin tener que tocar nada.
+
+Los tiempos de la música se ajustan en *Ajustes → Opciones*: **la música del día sube en**
+(15 s por defecto) y **fundido y silencio final** (3 s), que es tanto el fundido normal
+entre listas como el silencio que precede a las campanadas.
 
 ## 5. Cómo se calculan las duraciones
 

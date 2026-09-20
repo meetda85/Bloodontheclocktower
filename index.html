@@ -30,7 +30,10 @@
       <h1 id="phase-label">Noche 1</h1>
     </div>
 
-    <div id="clock" class="clock">00:00</div>
+    <div class="clock-slot">
+      <div id="clock" class="clock">00:00</div>
+      <button id="btn-stage" class="stage-btn">▶ Empezar la noche</button>
+    </div>
     <p id="clock-caption" class="clock-caption"></p>
 
     <div class="progress"><div id="progress-bar" class="progress-bar"></div></div>
@@ -195,7 +198,7 @@
     </div>
     <div class="field check">
       <input id="opt-autostart" type="checkbox" />
-      <label for="opt-autostart">Arrancar el reloj del día automáticamente</label>
+      <label for="opt-autostart">Arrancar solo el reloj de la noche cronometrada</label>
     </div>
     <div class="field check">
       <input id="opt-night-fx" type="checkbox" />
@@ -226,8 +229,12 @@
         <input id="opt-warning" type="number" min="0" max="300" step="5" />
       </div>
       <div class="field">
-        <label for="opt-fade">Fundido entre listas (seg)</label>
+        <label for="opt-fade">Fundido y silencio final (seg)</label>
         <input id="opt-fade" type="number" min="0" max="15" step="0.5" />
+      </div>
+      <div class="field">
+        <label for="opt-rise">La música del día sube en (seg)</label>
+        <input id="opt-rise" type="number" min="0" max="60" step="1" />
       </div>
       <div class="field">
         <label for="opt-vol-night">Volumen de noche (%)</label>

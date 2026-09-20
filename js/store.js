@@ -37,9 +37,10 @@ export const defaults = {
     shuffle: true,
     resumePlaylist: true,  // continuar la lista donde se quedó
     warningSeconds: 60,
-    fadeSeconds: 3,
-    volumeNight: 45,
-    volumeDay: 60,
+    fadeSeconds: 3,        // fundido normal y silencio antes de acabar el día
+    dayRiseSeconds: 15,    // lo que tarda la música del día en subir tras la noche
+    volumeNight: 100,
+    volumeDay: 100,
   },
 };
 
@@ -76,6 +77,11 @@ function migrate(saved) {
   if (saved?.options && !('untimedNight' in saved.options)) {
     saved.schedule = saved.schedule || {};
     if (!saved.schedule.applyTo || saved.schedule.applyTo === 'night') saved.schedule.applyTo = 'day';
+  }
+  // La música pasó a sonar siempre a tope: se descartan los volúmenes viejos.
+  if (saved?.options && !('dayRiseSeconds' in saved.options)) {
+    saved.options.volumeNight = 100;
+    saved.options.volumeDay = 100;
   }
   return saved;
 }

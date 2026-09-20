@@ -56,9 +56,9 @@ function output(ac) {
   const hall = ac.createConvolver();
   // Limitador: tres campanadas solapadas se suman y saturarían el altavoz.
   const limiter = ac.createDynamicsCompressor();
-  limiter.threshold.value = -4;
+  limiter.threshold.value = -7;
   limiter.knee.value = 6;
-  limiter.ratio.value = 12;
+  limiter.ratio.value = 16;
   limiter.attack.value = 0.003;
   limiter.release.value = 0.25;
   dry.gain.value = 0.8;
@@ -187,7 +187,7 @@ function toll(ac, out, at, volume, f0) {
   clapper.stop(at + 0.3);
 }
 
-export function cathedralBells({ tolls = 3, volume = 0.55, spacing = 2.9, root = 98 } = {}) {
+export function cathedralBells({ tolls = 3, volume = 0.85, spacing = 2.7, root = 73.4 } = {}) {
   const ac = context();
   if (!ac) return;
   const out = output(ac);

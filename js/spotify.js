@@ -344,7 +344,13 @@ function isLocal(deviceId) {
   return Boolean(localDeviceId) && (!deviceId || deviceId === localDeviceId);
 }
 
-export async function setVolume(percent, deviceId) {
+/**
+ * Cada fundido lleva un número de orden: si empieza otro, o alguien fija el
+ * volumen a mano, el anterior se abandona en vez de pelearse por el mando.
+ */
+let fadeToken = 0;
+
+async function applyVolume(percent, deviceId) {
   const clamped = Math.max(0, Math.min(100, Math.round(percent)));
   if (isLocal(deviceId) && player) {
     await player.setVolume(clamped / 100).catch(() => {});
@@ -354,14 +360,22 @@ export async function setVolume(percent, deviceId) {
     .catch(() => { /* algunos dispositivos no permiten cambiar el volumen remoto */ });
 }
 
+/** Fija el volumen ya, cortando cualquier fundido en marcha. */
+export async function setVolume(percent, deviceId) {
+  fadeToken += 1;
+  await applyVolume(percent, deviceId);
+}
+
 /** Fundido lineal de volumen. Con dispositivos remotos usa pasos largos (límite de peticiones). */
 export async function fadeVolume(from, to, seconds, deviceId) {
-  const local = isLocal(deviceId);
-  const stepMs = local ? 60 : 350;
-  const steps = Math.max(1, Math.round((seconds * 1000) / stepMs));
   if (seconds <= 0) { await setVolume(to, deviceId); return; }
+  const token = ++fadeToken;
+  const local = isLocal(deviceId);
+  const stepMs = local ? 60 : 400;
+  const steps = Math.max(1, Math.round((seconds * 1000) / stepMs));
   for (let i = 1; i <= steps; i += 1) {
-    await setVolume(from + ((to - from) * i) / steps, deviceId);
+    if (token !== fadeToken) return;        // lo ha relevado otro fundido
+    await applyVolume(from + ((to - from) * i) / steps, deviceId);
     if (i < steps) await new Promise((r) => setTimeout(r, stepMs));
   }
 }

@@ -5,10 +5,11 @@
  * El ciclo de juego tiene cuatro pasos:
  *   1. NOCHE      — sin cuenta atrás: suena la lista nocturna mientras el
  *                   narrador despierta a los personajes. La cierra él.
- *   2. AMANECE    — golpe siniestro y silencio a media luz para contar
- *                   lo que ha pasado durante la noche.
- *   3. DÍA        — cuenta atrás de debate con la lista diurna.
- *   4. al acabar  — campanas graves de catedral y vuelta a la noche.
+ *   2. AMANECE    — golpe siniestro, entra la lista del día subiendo poco a
+ *                   poco (15 s) mientras se cuenta lo que ha pasado.
+ *   3. DÍA        — al pulsar, la música salta al 100 % y corre el reloj.
+ *   4. al acabar  — la música se apaga y se pausa 3 s antes del cero, suenan
+ *                   tres campanadas graves y cae la noche siguiente.
  */
 
 import { settings, save, resetAll } from './store.js';
@@ -28,6 +29,7 @@ const el = {
   progress: $('progress-bar'),
   nowPlaying: $('now-playing'),
   play: $('btn-play'),
+  stage: $('btn-stage'),
   toast: $('toast'),
   spotifyStatus: $('spotify-status'),
   deviceStatus: $('device-status'),
@@ -46,12 +48,12 @@ const game = {
   musicPhase: null,      // fase cuya lista está sonando ahora mismo
   musicPaused: false,
   volume: settings.options.volumeNight,
+  endFadeDone: false,     // el silencio previo al cero solo se lanza una vez
 };
 
 /** Dónde se quedó cada lista, para poder retomarla. */
 const playbackMemory = { night: null, day: null };
 
-const DUCK = 0.35;       // cuánto baja la música mientras se narra la noche
 let wakeLock = null;
 let audioUnlocked = false;
 
@@ -109,37 +111,60 @@ function startNight() {
   playPhaseMusic('night').catch(showError);
 }
 
-/** Se acabó la noche: golpe siniestro y música a media luz para narrar. */
+/**
+ * Se acabó la noche: golpe siniestro y, acto seguido, entra la lista del día
+ * subiendo poco a poco mientras el narrador cuenta lo que ha pasado.
+ */
 function enterDawn({ effect = true } = {}) {
   timer.pause();
   game.step = 'dawn';
   renderStep();
   if (effect && settings.options.nightEffect) { unlockOnce(); nightStinger(); }
-  duckMusic(DUCK).catch(() => {});
+  // La noche se corta rápido (el golpe la tapa) y el día entra subiendo.
+  playPhaseMusic('day', {
+    fadeIn: Number(settings.options.dayRiseSeconds) || 0,
+    fadeOut: 1,
+  }).catch(showError);
 }
 
+/** Arranca el reloj del día y sube la música del todo, sin esperar al fundido. */
 function enterDay(round) {
   game.round = Math.max(1, round);
   game.step = 'day';
-  timer.setCountdown(sch.msFor(settings.schedule, game.round, 'day'), {
-    autoStart: settings.options.autoStart,
-  });
+  game.endFadeDone = false;
+  timer.setCountdown(sch.msFor(settings.schedule, game.round, 'day'), { autoStart: true });
   renderStep();
-  if (settings.options.autoStart) requestWakeLock();
-  playPhaseMusic('day').catch(showError);
+  requestWakeLock();
+
+  if (game.musicPhase === 'day' && !game.musicPaused) {
+    // La lista ya venía sonando desde el amanecer: solo hay que abrir el grifo.
+    const volume = settings.options.volumeDay;
+    setVolumeUi(volume);
+    sp.setVolume(volume, activeDeviceId()).catch(() => {});
+  } else {
+    playPhaseMusic('day').catch(showError);
+  }
 }
 
 function handleTimerEnd() {
   if (game.step === 'day') {
     if (settings.options.dayBells) cathedralBells();
-    // Deja sonar la primera campanada antes de que entre la música nocturna.
-    if (settings.options.autoAdvance) {
-      setTimeout(() => { if (game.step === 'day') enterNight(game.round + 1); },
-        settings.options.dayBells ? 2500 : 0);
-    }
+    if (settings.options.autoAdvance) enterNight(game.round + 1);
   } else if (game.step === 'night-timed') {
     enterDawn();
   }
+}
+
+/** Unos segundos antes del cero: la música se apaga y se pausa. */
+async function silenceBeforeDayEnd(seconds) {
+  if (!game.musicPhase || game.musicPaused) return;
+  const deviceId = activeDeviceId();
+  try {
+    await sp.fadeVolume(game.volume, 0, seconds, deviceId);
+    await sp.pause(deviceId);
+    game.musicPaused = true;
+    updateMusicButton();
+  } catch { /* si falla, al menos el reloj sigue su curso */ }
 }
 
 function nextStep() {
@@ -215,21 +240,31 @@ function renderClock({ mode, value, durationMs, running }) {
   el.clock.classList.toggle('is-warning', counting && value > 0 && warning > 0 && value <= warning);
   el.clock.classList.toggle('is-over', counting && value <= 0);
 
-  el.play.textContent = primaryLabel(running, value);
+  const label = primaryLabel(running, value);
+  el.play.textContent = label;
+  el.stage.textContent = label;
 
-  // Antes de arrancar, la noche invita a empezar en vez de describirse.
+  // En la noche abierta el reloj se va al pie, como dato de apoyo.
   if (game.step === 'night') {
     el.caption.textContent = running
-      ? stepInfo.night.caption
+      ? `la noche lleva ${formatClock(value, { mode: 'up' })} · ciérrala cuando termines`
       : 'la partida empieza al caer la noche';
+  }
+
+  // Tres segundos antes del cero, silencio para que entren las campanas.
+  const endFade = Number(settings.options.fadeSeconds) || 0;
+  if (game.step === 'day' && mode === 'down' && running && endFade > 0
+      && value > 0 && value <= endFade * 1000 && !game.endFadeDone) {
+    game.endFadeDone = true;
+    silenceBeforeDayEnd(value / 1000);
   }
 }
 
 function primaryLabel(running, value) {
   switch (game.step) {
-    case 'night': return running ? '🌒 Terminar la noche' : '▶ Empezar la noche';
-    case 'night-timed': return value <= 0 ? '🌒 Terminar la noche' : (running ? '⏸ Pausa' : '▶ Iniciar');
-    case 'dawn': return '☀️ Iniciar el día';
+    case 'night': return running ? '🌒 Finalizó la noche' : '▶ Empezar la noche';
+    case 'night-timed': return value <= 0 ? '🌒 Finalizó la noche' : (running ? '⏸ Pausa' : '▶ Iniciar');
+    case 'dawn': return '☀️ Iniciar temporizador del día';
     default: return running ? '⏸ Pausa' : (value <= 0 ? '↺ Reiniciar' : '▶ Iniciar');
   }
 }
@@ -274,11 +309,13 @@ async function rememberPhase(phase) {
   }
 }
 
-async function playPhaseMusic(phase) {
+async function playPhaseMusic(phase, { fadeIn = null, fadeOut = null } = {}) {
   if (!sp.isConnected()) return;
 
   const uri = settings.playlists[phase].uri;
   const fade = Number(settings.options.fadeSeconds) || 0;
+  const rise = fadeIn === null ? fade : fadeIn;
+  const drop = fadeOut === null ? fade : fadeOut;
   const target = phase === 'night' ? settings.options.volumeNight : settings.options.volumeDay;
 
   await rememberPhase(game.musicPhase);
@@ -297,7 +334,7 @@ async function playPhaseMusic(phase) {
 
   const deviceId = await ensureDevice();
 
-  if (game.musicPhase) await sp.fadeVolume(game.volume, 0, fade, deviceId);
+  if (game.musicPhase && !game.musicPaused) await sp.fadeVolume(game.volume, 0, drop, deviceId);
   await sp.setVolume(0, deviceId);
 
   if (settings.options.shuffle) await sp.setShuffle(true, deviceId);
@@ -314,16 +351,7 @@ async function playPhaseMusic(phase) {
   game.musicPaused = false;
   setVolumeUi(target);
   updateMusicButton();
-  await sp.fadeVolume(0, target, fade, deviceId);
-}
-
-/** Baja la música para que se oiga la narración (o el efecto). */
-async function duckMusic(factor) {
-  if (!game.musicPhase || game.musicPaused) return;
-  const target = Math.round(settings.options.volumeNight * factor);
-  const from = game.volume;
-  setVolumeUi(target);
-  await sp.fadeVolume(from, target, 1.2, activeDeviceId());
+  await sp.fadeVolume(0, target, rise, deviceId);
 }
 
 async function toggleMusic() {
@@ -467,6 +495,7 @@ function renderSettings() {
   $('opt-resume').checked = o.resumePlaylist;
   $('opt-warning').value = o.warningSeconds;
   $('opt-fade').value = o.fadeSeconds;
+  $('opt-rise').value = o.dayRiseSeconds;
   $('opt-vol-night').value = o.volumeNight;
   $('opt-vol-day').value = o.volumeDay;
 }
@@ -537,6 +566,7 @@ function syncCurrentDuration(round, phase) {
 function bindUi() {
   /* Controles principales */
   el.play.addEventListener('click', onPrimary);
+  el.stage.addEventListener('click', onPrimary);
   $('btn-plus').addEventListener('click', () => timer.adjust(60_000));
   $('btn-minus').addEventListener('click', () => timer.adjust(-60_000));
   $('btn-reset').addEventListener('click', () => timer.reset({ autoStart: false }));
@@ -697,7 +727,7 @@ function bindUi() {
   $('btn-test-bells').addEventListener('click', () => { unlockOnce(); cathedralBells(); });
 
   const numbers = {
-    'opt-warning': 'warningSeconds', 'opt-fade': 'fadeSeconds',
+    'opt-warning': 'warningSeconds', 'opt-fade': 'fadeSeconds', 'opt-rise': 'dayRiseSeconds',
     'opt-vol-night': 'volumeNight', 'opt-vol-day': 'volumeDay',
   };
   for (const [id, key] of Object.entries(numbers)) {

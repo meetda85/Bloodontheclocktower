@@ -145,14 +145,39 @@ body {
   text-align: center;
 }
 
-/* En la noche abierta el reloj solo informa: que no robe protagonismo. */
-#app[data-step="night"] .clock { font-size: min(18vh, 16vw); opacity: .5; font-weight: 600; }
-#app[data-step="dawn"] .clock { font-size: min(18vh, 16vw); opacity: .35; font-weight: 600; }
+/* En la noche y al amanecer, el botón grande ocupa el sitio del reloj. */
+.clock-slot { display: flex; align-items: center; justify-content: center; width: 100%; }
+
+.stage-btn {
+  display: none;
+  width: min(900px, 92%);
+  min-height: clamp(150px, 30vh, 300px);
+  padding: 0 clamp(20px, 4vw, 48px);
+  font-family: inherit;
+  font-size: clamp(1.6rem, 6vh, 3.4rem);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+  background: var(--accent);
+  border: none;
+  border-radius: 28px;
+  cursor: pointer;
+  touch-action: manipulation;
+  box-shadow: 0 24px 70px -26px var(--glow);
+  transition: transform 90ms ease, filter 160ms ease;
+}
+.stage-btn:active { transform: scale(.985); filter: brightness(.92); }
+
+#app[data-step="night"] .clock,
+#app[data-step="dawn"] .clock { display: none; }
+#app[data-step="night"] .stage-btn,
+#app[data-step="dawn"] .stage-btn { display: block; }
+#app[data-step="night"] #btn-play,
+#app[data-step="dawn"] #btn-play { display: none; }
 #app[data-step="night"] .progress,
 #app[data-step="dawn"] .progress { visibility: hidden; }
-
-#app[data-step="night"] .ctl-primary,
-#app[data-step="dawn"] .ctl-primary { min-height: 84px; font-size: clamp(1.05rem, 2.6vh, 1.5rem); }
 
 .progress {
   width: min(900px, 92%);
