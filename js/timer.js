@@ -1,31 +1,34 @@
 /**
- * Cuenta atrás basada en marcas de tiempo reales: no acumula desfase aunque
- * el navegador de la tablet ralentice los temporizadores en segundo plano.
+ * Reloj de la partida. Dos modos:
+ *   · 'down' — cuenta atrás del día (o de la noche, si se le pone tiempo).
+ *   · 'up'   — cronómetro de la noche abierta: corre hasta que el narrador la cierra.
+ *
+ * Todo se calcula con marcas de tiempo reales, así que no acumula desfase
+ * aunque el navegador de la tablet ralentice los temporizadores de fondo.
  */
 
 export function createTimer({ onTick, onEnd }) {
-  let durationMs = 0;
-  let remainingMs = 0;
-  let deadline = 0;      // instante (epoch ms) en que llega a cero
+  let mode = 'down';
+  let durationMs = 0;    // solo en cuenta atrás
+  let baseMs = 0;        // valor congelado mientras está parado
+  let anchor = 0;        // Date.now() del último arranque
   let running = false;
   let ended = false;
   let handle = null;
 
-  function now() { return Date.now(); }
-
-  function currentRemaining() {
-    return running ? Math.max(0, deadline - now()) : remainingMs;
+  function value() {
+    const since = running ? Date.now() - anchor : 0;
+    return mode === 'up' ? baseMs + since : Math.max(0, baseMs - since);
   }
 
   function emit() {
-    onTick?.({ remainingMs: currentRemaining(), durationMs, running });
+    onTick?.({ mode, value: value(), durationMs, running });
   }
 
   function loop() {
-    const left = currentRemaining();
-    if (running && left <= 0) {
+    if (mode === 'down' && running && value() <= 0) {
+      baseMs = 0;
       running = false;
-      remainingMs = 0;
       stopLoop();
       emit();
       if (!ended) { ended = true; onEnd?.(); }
@@ -43,20 +46,34 @@ export function createTimer({ onTick, onEnd }) {
     if (handle !== null) { clearInterval(handle); handle = null; }
   }
 
-  return {
-    /** Carga una fase nueva (opcionalmente arrancándola). */
-    set(ms, { autoStart = false } = {}) {
+  const api = {
+    /** Carga una cuenta atrás. */
+    setCountdown(ms, { autoStart = false } = {}) {
+      mode = 'down';
       durationMs = Math.max(0, ms);
-      remainingMs = durationMs;
+      baseMs = durationMs;
       ended = false;
       running = false;
       stopLoop();
-      if (autoStart && durationMs > 0) this.start();
+      if (autoStart && durationMs > 0) api.start();
+      else emit();
+    },
+    /** Carga el cronómetro (noche sin tiempo). */
+    setStopwatch({ autoStart = true } = {}) {
+      mode = 'up';
+      durationMs = 0;
+      baseMs = 0;
+      ended = false;
+      running = false;
+      stopLoop();
+      if (autoStart) api.start();
       else emit();
     },
     start() {
-      if (running || currentRemaining() <= 0) return;
-      deadline = now() + remainingMs;
+      if (running) return;
+      if (mode === 'down' && value() <= 0) return;
+      baseMs = value();
+      anchor = Date.now();
       running = true;
       ended = false;
       startLoop();
@@ -64,30 +81,40 @@ export function createTimer({ onTick, onEnd }) {
     },
     pause() {
       if (!running) return;
-      remainingMs = currentRemaining();
+      baseMs = value();
       running = false;
       stopLoop();
       emit();
     },
-    toggle() { running ? this.pause() : this.start(); },
-    /** Suma (o resta) tiempo sin parar el reloj. */
+    toggle() { running ? api.pause() : api.start(); },
+    /** Suma o resta tiempo sin parar el reloj (solo cuenta atrás). */
     adjust(deltaMs) {
-      const left = Math.max(0, currentRemaining() + deltaMs);
-      durationMs = Math.max(durationMs, left);
-      if (running) deadline = now() + left;
-      else remainingMs = left;
-      if (left > 0) ended = false;
+      if (mode !== 'down') return;
+      baseMs = Math.max(0, value() + deltaMs);
+      anchor = Date.now();
+      durationMs = Math.max(durationMs, baseMs);
+      if (baseMs > 0) ended = false;
       emit();
     },
-    reset({ autoStart = false } = {}) { this.set(durationMs, { autoStart }); },
+    reset({ autoStart = false } = {}) {
+      if (mode === 'up') api.setStopwatch({ autoStart });
+      else api.setCountdown(durationMs, { autoStart });
+    },
+    get mode() { return mode; },
     get running() { return running; },
-    get remainingMs() { return currentRemaining(); },
+    get value() { return value(); },
     get durationMs() { return durationMs; },
   };
+  return api;
 }
 
-export function formatClock(ms) {
-  const total = Math.ceil(Math.max(0, ms) / 1000);
+/**
+ * La cuenta atrás redondea hacia arriba (arranca en 10:00 y el último segundo
+ * se ve como 00:01); el cronómetro hacia abajo (arranca en 00:00).
+ */
+export function formatClock(ms, { mode = 'down' } = {}) {
+  const seconds_ = Math.max(0, ms) / 1000;
+  const total = mode === 'up' ? Math.floor(seconds_) : Math.ceil(seconds_ - 1e-6);
   const minutes = Math.floor(total / 60);
   const seconds = total % 60;
   const mm = minutes < 100 ? String(minutes).padStart(2, '0') : String(minutes);

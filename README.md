@@ -3,13 +3,23 @@
 Temporizador por fases con banda sonora de **Spotify** para dirigir partidas de
 **Blood on the Clocktower** desde una tablet.
 
+- 🌙 **La noche no lleva reloj**: suena la lista nocturna mientras despiertas a los
+  personajes, y la cierras tú con un botón cuando has terminado.
+- 💀 Al cerrarla suena un **golpe oscuro y siniestro**, la música baja a media luz y
+  tienes el escenario en silencio para contar lo que ha pasado durante la noche.
+- ☀️ Pulsas *Iniciar el día* y arranca la cuenta atrás de debate con la lista diurna.
+- 🔔 Cuando se acaba el día tocan **campanas graves de catedral** y cae la noche siguiente.
 - ⏱️ Cuenta atrás gigante, pensada para verse desde el otro lado de la mesa.
-- 🌙☀️ Alterna noche y día: cada fase tiene su propia duración y su propia lista de Spotify.
-- 📉 Progresión automática configurable: por defecto **10 min la primera ronda, −2 min por ronda, con suelo de 6 min**.
-- ✍️ Cualquier ronda se puede fijar a mano (¿quieres que la noche 1 dure 20 minutos? se escribe y ya está).
+- 📉 Progresión automática configurable: por defecto **10 min el primer día, −2 min por
+  ronda, con suelo de 6 min**.
+- ✍️ Cualquier ronda se puede fijar a mano (¿quieres que el día 1 dure 20 minutos? se
+  escribe y ya está). Y si prefieres que la noche también tenga reloj, se activa con una casilla.
 - 🎚️ Fundido de volumen al cambiar de lista, aleatorio y opción de retomar cada lista donde se quedó.
 - 🔊 Suena en la propia tablet (reproductor integrado) o en cualquier otro dispositivo Spotify: altavoz, móvil, PC…
-- 🔔 Campanada al acabar el tiempo, aviso visual en los últimos segundos y pantalla siempre encendida.
+- 🖥️ Aviso visual en los últimos segundos y pantalla siempre encendida.
+
+Los dos efectos (el golpe siniestro y las campanas) están **sintetizados con Web Audio**:
+no hay ficheros de sonido que descargar y suenan con una reverberación larga, de nave de piedra.
 
 No necesita servidor, ni instalación, ni `npm`: son ficheros estáticos (HTML + CSS + JavaScript).
 
@@ -57,23 +67,36 @@ Usa `127.0.0.1`, no `localhost`: Spotify solo acepta `https://` o la dirección 
 
 ## 4. Dirigir la partida
 
+El botón grande hace siempre lo que toca en ese momento:
+
+| Paso | Qué ves | Qué pasa al pulsarlo |
+|---|---|---|
+| Noche (parada) | ▶ Empezar la noche | arranca la lista nocturna y el cronómetro |
+| Noche (en curso) | 🌒 Terminar la noche | golpe siniestro, música a media luz |
+| Amanece | ☀️ Iniciar el día | lista diurna y cuenta atrás del día |
+| Día | ⏸ Pausa / ▶ Iniciar | para y reanuda el reloj |
+
+Y los botones de apoyo:
+
 | Acción | Botón | Teclado |
 |---|---|---|
-| Iniciar / pausar | ▶ Iniciar | `espacio` |
-| Sumar o restar un minuto | +1 min / −1 min | |
-| Siguiente fase (noche → día → noche…) | Siguiente fase ⏭ | `→` |
-| Fase anterior | ⏮ Fase anterior | `←` |
-| Reiniciar la fase actual | ↺ Reiniciar fase | `R` |
+| Botón grande | (el de arriba) | `espacio` |
+| Sumar o restar un minuto (solo con reloj) | +1 min / −1 min | |
+| Paso siguiente | Siguiente ⏭ | `→` |
+| Paso anterior | ⏮ Atrás | `←` |
+| Reiniciar la cuenta atrás | ↺ Reiniciar fase | `R` |
+| Repetir el efecto siniestro | 🔊 Repetir efecto | |
 | Pausar o reanudar la música | ⏯ Música | |
 | Saltar de canción | ⏭ Canción | |
 | Pantalla completa | ⛶ | `F` |
 
-Al entrar en una fase, la app arranca su lista con un fundido; al llegar el reloj a cero
-suena la campanada y (si está activado *pasar solo a la siguiente fase*) cambia la fase
-y con ella la música. Así la noche y el día suenan siempre distintos sin tocar nada.
+Cuando el día llega a cero suenan las campanas y, si está activado *caer solo en la noche
+siguiente*, la app entra en la noche con su música. Así la noche y el día suenan siempre
+distintos sin tener que tocar nada.
 
 ## 5. Cómo se calculan las duraciones
 
+Por defecto la noche no lleva reloj, así que la progresión se aplica al **día**.
 Para cada ronda, la fase elegida en *«La progresión se aplica a»* dura:
 
 ```
@@ -81,7 +104,8 @@ duración(ronda) = máx( suelo , primera_ronda − bajada × (ronda − 1) )
 ```
 
 Con los valores por defecto (10, −2, suelo 6) sale: **10, 8, 6, 6, 6…**
-La otra fase usa la duración fija indicada al lado. Cualquier casilla escrita a mano
+La otra fase usa la duración fija indicada al lado (y si es la noche y está marcada como
+«sin tiempo», simplemente no lleva reloj). Cualquier casilla escrita a mano
 manda sobre la fórmula, se marca en color y se guarda en la tablet.
 
 ## 6. Notas
@@ -105,5 +129,5 @@ js/spotify.js     OAuth PKCE, Web API, Web Playback SDK y fundidos
 js/schedule.js    Cálculo de la duración de cada ronda
 js/timer.js       Cuenta atrás por marcas de tiempo
 js/store.js       Configuración persistente
-js/audio.js       Campanada sintetizada (Web Audio)
+js/audio.js       Golpe siniestro y campanas de catedral (Web Audio)
 ```

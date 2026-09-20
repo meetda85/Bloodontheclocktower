@@ -1,12 +1,20 @@
 /**
- * Clocktower Timer — temporizador por fases con bandas sonoras de Spotify
- * para dirigir partidas de Blood on the Clocktower desde una tablet.
+ * Clocktower Timer — reloj y banda sonora para dirigir partidas de
+ * Blood on the Clocktower desde una tablet.
+ *
+ * El ciclo de juego tiene cuatro pasos:
+ *   1. NOCHE      — sin cuenta atrás: suena la lista nocturna mientras el
+ *                   narrador despierta a los personajes. La cierra él.
+ *   2. AMANECE    — golpe siniestro y silencio a media luz para contar
+ *                   lo que ha pasado durante la noche.
+ *   3. DÍA        — cuenta atrás de debate con la lista diurna.
+ *   4. al acabar  — campanas graves de catedral y vuelta a la noche.
  */
 
 import { settings, save, resetAll } from './store.js';
 import * as sch from './schedule.js';
 import { createTimer, formatClock } from './timer.js';
-import { gong, unlock as unlockAudio } from './audio.js';
+import { nightStinger, cathedralBells, unlock as unlockAudio } from './audio.js';
 import * as sp from './spotify.js';
 
 /* ── Atajos al DOM ───────────────────────────────────────── */
@@ -14,6 +22,7 @@ const $ = (id) => document.getElementById(id);
 const app = $('app');
 const el = {
   clock: $('clock'),
+  caption: $('clock-caption'),
   phaseLabel: $('phase-label'),
   phaseIcon: $('phase-icon'),
   progress: $('progress-bar'),
@@ -33,7 +42,7 @@ const el = {
 /* ── Estado de la partida ────────────────────────────────── */
 const game = {
   round: 1,
-  phase: 'night',        // 'night' | 'day'
+  step: 'night',         // 'night' | 'night-timed' | 'dawn' | 'day'
   musicPhase: null,      // fase cuya lista está sonando ahora mismo
   musicPaused: false,
   volume: settings.options.volumeNight,
@@ -42,21 +51,23 @@ const game = {
 /** Dónde se quedó cada lista, para poder retomarla. */
 const playbackMemory = { night: null, day: null };
 
+const DUCK = 0.35;       // cuánto baja la música mientras se narra la noche
 let wakeLock = null;
 let audioUnlocked = false;
 
 const timer = createTimer({ onTick: renderClock, onEnd: handleTimerEnd });
 
-/* ── Arranque ────────────────────────────────────────────── */
+const phaseOf = (step) => (step === 'day' ? 'day' : 'night');
+const isNight = (step) => step === 'night' || step === 'night-timed';
 
-init();
+/* ── Arranque ────────────────────────────────────────────── */
 
 async function init() {
   $('redirect-uri').textContent = sp.redirectUri();
   bindUi();
   renderSettings();
   renderSchedule();
-  enterPhase(1, 'night', { autoStart: false });
+  enterNight(1, { autoStart: false, music: false });
 
   try {
     if (await sp.completeLoginFromUrl() === 'connected') toast('Spotify conectado ✔');
@@ -72,57 +83,161 @@ async function init() {
   });
 }
 
-/* ── Fases ───────────────────────────────────────────────── */
+/* ── Pasos del ciclo ─────────────────────────────────────── */
 
-function enterPhase(round, phase, { autoStart = settings.options.autoStart, music = true } = {}) {
+function enterNight(round, { autoStart = true, music = true } = {}) {
   game.round = Math.max(1, round);
-  game.phase = phase;
-  app.dataset.phase = phase;
+  game.step = settings.options.untimedNight ? 'night' : 'night-timed';
 
-  el.phaseIcon.textContent = sch.phaseIcon[phase];
-  el.phaseLabel.textContent = `${sch.phaseLabel[phase]} ${game.round}`;
-  document.title = `${sch.phaseLabel[phase]} ${game.round} · Clocktower Timer`;
+  if (settings.options.untimedNight) {
+    timer.setStopwatch({ autoStart });
+  } else {
+    timer.setCountdown(sch.msFor(settings.schedule, game.round, 'night'), {
+      autoStart: autoStart && settings.options.autoStart,
+    });
+  }
 
-  game.volume = phase === 'night' ? settings.options.volumeNight : settings.options.volumeDay;
-  el.volume.value = game.volume;
-  el.volumeOut.textContent = game.volume;
-
-  timer.set(sch.msFor(settings.schedule, game.round, phase), { autoStart });
-  renderSchedule();
+  renderStep();
   if (autoStart) requestWakeLock();
-  if (music) playPhaseMusic(phase).catch(showError);
+  if (music) playPhaseMusic('night').catch(showError);
 }
 
-function nextPhase() {
-  if (game.phase === 'night') enterPhase(game.round, 'day');
-  else enterPhase(game.round + 1, 'night');
+/** Primera pulsación de la noche: arranca cronómetro y música. */
+function startNight() {
+  timer.start();
+  requestWakeLock();
+  playPhaseMusic('night').catch(showError);
 }
 
-function prevPhase() {
-  if (game.phase === 'day') enterPhase(game.round, 'night');
-  else if (game.round > 1) enterPhase(game.round - 1, 'day');
-  else enterPhase(1, 'night');
+/** Se acabó la noche: golpe siniestro y música a media luz para narrar. */
+function enterDawn({ effect = true } = {}) {
+  timer.pause();
+  game.step = 'dawn';
+  renderStep();
+  if (effect && settings.options.nightEffect) { unlockOnce(); nightStinger(); }
+  duckMusic(DUCK).catch(() => {});
+}
+
+function enterDay(round) {
+  game.round = Math.max(1, round);
+  game.step = 'day';
+  timer.setCountdown(sch.msFor(settings.schedule, game.round, 'day'), {
+    autoStart: settings.options.autoStart,
+  });
+  renderStep();
+  if (settings.options.autoStart) requestWakeLock();
+  playPhaseMusic('day').catch(showError);
 }
 
 function handleTimerEnd() {
-  if (settings.options.alarm) gong();
-  if (settings.options.autoAdvance) nextPhase();
-  else renderClock({ remainingMs: 0, durationMs: timer.durationMs, running: false });
+  if (game.step === 'day') {
+    if (settings.options.dayBells) cathedralBells();
+    // Deja sonar la primera campanada antes de que entre la música nocturna.
+    if (settings.options.autoAdvance) {
+      setTimeout(() => { if (game.step === 'day') enterNight(game.round + 1); },
+        settings.options.dayBells ? 2500 : 0);
+    }
+  } else if (game.step === 'night-timed') {
+    enterDawn();
+  }
 }
 
-/* ── Pintado del reloj ───────────────────────────────────── */
+function nextStep() {
+  if (isNight(game.step)) enterDawn();
+  else if (game.step === 'dawn') enterDay(game.round);
+  else enterNight(game.round + 1);
+}
 
-function renderClock({ remainingMs, durationMs, running }) {
-  el.clock.textContent = formatClock(remainingMs);
+function prevStep() {
+  if (game.step === 'dawn') enterNight(game.round);
+  else if (game.step === 'day') enterNight(game.round);
+  else if (game.round > 1) enterDay(game.round - 1);
+  else enterNight(1, { autoStart: false, music: false });
+}
 
-  const ratio = durationMs > 0 ? remainingMs / durationMs : 0;
+/** El botón grande hace lo que toque en cada paso. */
+function onPrimary() {
+  unlockOnce();
+  switch (game.step) {
+    case 'night':
+      if (timer.running) enterDawn();
+      else startNight();
+      break;
+    case 'night-timed':
+      if (timer.value <= 0) enterDawn();
+      else timer.toggle();
+      break;
+    case 'dawn':
+      enterDay(game.round);
+      break;
+    default:
+      if (timer.value <= 0 && !timer.running) timer.reset({ autoStart: true });
+      else timer.toggle();
+      if (timer.running) requestWakeLock();
+  }
+  renderClock({ mode: timer.mode, value: timer.value, durationMs: timer.durationMs, running: timer.running });
+}
+
+/* ── Pintado ─────────────────────────────────────────────── */
+
+const stepInfo = {
+  'night': { phase: 'night', icon: '🌙', caption: 'la noche corre · ciérrala cuando termines' },
+  'night-timed': { phase: 'night', icon: '🌙', caption: '' },
+  'dawn': { phase: 'dawn', icon: '🌅', caption: 'cuenta lo que ha pasado esta noche' },
+  'day': { phase: 'day', icon: '☀️', caption: '' },
+};
+
+function renderStep() {
+  const info = stepInfo[game.step];
+  app.dataset.step = game.step;
+  app.dataset.phase = info.phase;
+  el.phaseIcon.textContent = info.icon;
+  el.phaseLabel.textContent = game.step === 'dawn'
+    ? `Amanece · noche ${game.round}`
+    : `${sch.phaseLabel[phaseOf(game.step)]} ${game.round}`;
+  el.caption.textContent = info.caption;
+  document.title = `${el.phaseLabel.textContent} · Clocktower Timer`;
+
+  const volume = phaseOf(game.step) === 'night' ? settings.options.volumeNight : settings.options.volumeDay;
+  if (game.step !== 'dawn') setVolumeUi(volume);
+  renderSchedule();
+  renderClock({ mode: timer.mode, value: timer.value, durationMs: timer.durationMs, running: timer.running });
+}
+
+function renderClock({ mode, value, durationMs, running }) {
+  el.clock.textContent = formatClock(value, { mode });
+
+  const ratio = mode === 'down' && durationMs > 0 ? value / durationMs : 0;
   el.progress.style.width = `${Math.max(0, Math.min(1, ratio)) * 100}%`;
 
   const warning = settings.options.warningSeconds * 1000;
-  el.clock.classList.toggle('is-warning', remainingMs > 0 && warning > 0 && remainingMs <= warning);
-  el.clock.classList.toggle('is-over', remainingMs <= 0 && durationMs > 0);
+  const counting = mode === 'down' && durationMs > 0;
+  el.clock.classList.toggle('is-warning', counting && value > 0 && warning > 0 && value <= warning);
+  el.clock.classList.toggle('is-over', counting && value <= 0);
 
-  el.play.textContent = running ? '⏸ Pausa' : (remainingMs <= 0 ? '↺ Reiniciar' : '▶ Iniciar');
+  el.play.textContent = primaryLabel(running, value);
+
+  // Antes de arrancar, la noche invita a empezar en vez de describirse.
+  if (game.step === 'night') {
+    el.caption.textContent = running
+      ? stepInfo.night.caption
+      : 'la partida empieza al caer la noche';
+  }
+}
+
+function primaryLabel(running, value) {
+  switch (game.step) {
+    case 'night': return running ? '🌒 Terminar la noche' : '▶ Empezar la noche';
+    case 'night-timed': return value <= 0 ? '🌒 Terminar la noche' : (running ? '⏸ Pausa' : '▶ Iniciar');
+    case 'dawn': return '☀️ Iniciar el día';
+    default: return running ? '⏸ Pausa' : (value <= 0 ? '↺ Reiniciar' : '▶ Iniciar');
+  }
+}
+
+function setVolumeUi(volume) {
+  game.volume = volume;
+  el.volume.value = volume;
+  el.volumeOut.textContent = Math.round(volume);
 }
 
 /* ── Música ──────────────────────────────────────────────── */
@@ -197,11 +312,18 @@ async function playPhaseMusic(phase) {
 
   game.musicPhase = phase;
   game.musicPaused = false;
-  game.volume = target;
-  el.volume.value = target;
-  el.volumeOut.textContent = target;
+  setVolumeUi(target);
   updateMusicButton();
   await sp.fadeVolume(0, target, fade, deviceId);
+}
+
+/** Baja la música para que se oiga la narración (o el efecto). */
+async function duckMusic(factor) {
+  if (!game.musicPhase || game.musicPaused) return;
+  const target = Math.round(settings.options.volumeNight * factor);
+  const from = game.volume;
+  setVolumeUi(target);
+  await sp.fadeVolume(from, target, 1.2, activeDeviceId());
 }
 
 async function toggleMusic() {
@@ -209,7 +331,7 @@ async function toggleMusic() {
   try {
     const deviceId = activeDeviceId();
     if (game.musicPaused || !game.musicPhase) {
-      if (!game.musicPhase) { await playPhaseMusic(game.phase); return; }
+      if (!game.musicPhase) { await playPhaseMusic(phaseOf(game.step)); return; }
       await sp.resume(deviceId);
       game.musicPaused = false;
     } else {
@@ -335,9 +457,11 @@ function renderSettings() {
   $('sch-fixed').value = settings.schedule.fixed;
 
   const o = settings.options;
+  $('opt-untimed-night').checked = o.untimedNight;
   $('opt-autoadvance').checked = o.autoAdvance;
   $('opt-autostart').checked = o.autoStart;
-  $('opt-alarm').checked = o.alarm;
+  $('opt-night-fx').checked = o.nightEffect;
+  $('opt-day-bells').checked = o.dayBells;
   $('opt-keepawake').checked = o.keepAwake;
   $('opt-shuffle').checked = o.shuffle;
   $('opt-resume').checked = o.resumePlaylist;
@@ -362,6 +486,11 @@ function renderSchedule() {
 
     for (const phase of sch.PHASES) {
       const td = document.createElement('td');
+      if (phase === 'night' && settings.options.untimedNight) {
+        td.innerHTML = '<span class="muted-cell">sin tiempo</span>';
+        tr.append(td);
+        continue;
+      }
       const input = document.createElement('input');
       input.type = 'number';
       input.min = '0';
@@ -373,7 +502,7 @@ function renderSchedule() {
         const value = Number(input.value);
         sch.setOverride(settings.schedule, round, phase, Number.isFinite(value) ? value : null);
         save();
-        syncCurrentPhaseDuration(round, phase);
+        syncCurrentDuration(round, phase);
         renderSchedule();
       });
       td.append(input);
@@ -388,8 +517,7 @@ function renderSchedule() {
     reset.addEventListener('click', () => {
       for (const phase of sch.PHASES) sch.setOverride(settings.schedule, round, phase, null);
       save();
-      syncCurrentPhaseDuration(round, 'night');
-      syncCurrentPhaseDuration(round, 'day');
+      syncCurrentDuration(round, phaseOf(game.step));
       renderSchedule();
     });
     actions.append(reset);
@@ -400,34 +528,29 @@ function renderSchedule() {
 }
 
 /** Si se edita la fase que está en pantalla y el reloj no corre, recárgala. */
-function syncCurrentPhaseDuration(round, phase) {
-  if (round === game.round && phase === game.phase && !timer.running) {
-    timer.set(sch.msFor(settings.schedule, round, phase), { autoStart: false });
+function syncCurrentDuration(round, phase) {
+  if (round === game.round && phase === phaseOf(game.step) && timer.mode === 'down' && !timer.running) {
+    timer.setCountdown(sch.msFor(settings.schedule, round, phase), { autoStart: false });
   }
 }
 
 function bindUi() {
   /* Controles principales */
-  el.play.addEventListener('click', () => {
-    unlockOnce();
-    if (timer.remainingMs <= 0 && !timer.running) timer.reset({ autoStart: true });
-    else timer.toggle();
-    if (timer.running) requestWakeLock();
-    renderClock({ remainingMs: timer.remainingMs, durationMs: timer.durationMs, running: timer.running });
-  });
+  el.play.addEventListener('click', onPrimary);
   $('btn-plus').addEventListener('click', () => timer.adjust(60_000));
   $('btn-minus').addEventListener('click', () => timer.adjust(-60_000));
   $('btn-reset').addEventListener('click', () => timer.reset({ autoStart: false }));
-  $('btn-next').addEventListener('click', () => { unlockOnce(); nextPhase(); });
-  $('btn-prev').addEventListener('click', () => { unlockOnce(); prevPhase(); });
+  $('btn-next').addEventListener('click', () => { unlockOnce(); nextStep(); });
+  $('btn-prev').addEventListener('click', () => { unlockOnce(); prevStep(); });
+  $('btn-replay-fx').addEventListener('click', () => { unlockOnce(); nightStinger(); });
   $('btn-music').addEventListener('click', () => { unlockOnce(); toggleMusic(); });
   $('btn-skip-track').addEventListener('click', () => sp.nextTrack(activeDeviceId()).catch(showError));
 
   el.volume.addEventListener('input', () => {
     game.volume = Number(el.volume.value);
     el.volumeOut.textContent = game.volume;
-    if (game.phase === 'night') settings.options.volumeNight = game.volume;
-    else settings.options.volumeDay = game.volume;
+    if (phaseOf(game.step) === 'night' && game.step !== 'dawn') settings.options.volumeNight = game.volume;
+    else if (game.step === 'day') settings.options.volumeDay = game.volume;
     save();
     $('opt-vol-night').value = settings.options.volumeNight;
     $('opt-vol-day').value = settings.options.volumeDay;
@@ -517,6 +640,13 @@ function bindUi() {
   }
 
   /* Temporizadores */
+  $('opt-untimed-night').addEventListener('change', (e) => {
+    settings.options.untimedNight = e.target.checked;
+    save();
+    renderSchedule();
+    if (isNight(game.step)) enterNight(game.round, { autoStart: false, music: false });
+  });
+
   const scheduleInputs = {
     'sch-start': 'start', 'sch-step': 'step', 'sch-min': 'min',
     'sch-rounds': 'rounds', 'sch-fixed': 'fixed',
@@ -527,32 +657,33 @@ function bindUi() {
       settings.schedule[key] = Number.isFinite(value) ? value : settings.schedule[key];
       save();
       renderSchedule();
-      syncCurrentPhaseDuration(game.round, game.phase);
+      syncCurrentDuration(game.round, phaseOf(game.step));
     });
   }
   $('sch-apply').addEventListener('change', (e) => {
     settings.schedule.applyTo = e.target.value;
     save();
     renderSchedule();
-    syncCurrentPhaseDuration(game.round, game.phase);
+    syncCurrentDuration(game.round, phaseOf(game.step));
   });
   $('btn-apply-schedule').addEventListener('click', () => {
     sch.clearOverrides(settings.schedule);
     save();
     renderSchedule();
-    syncCurrentPhaseDuration(game.round, game.phase);
+    syncCurrentDuration(game.round, phaseOf(game.step));
     toast('Progresión aplicada a todas las rondas');
   });
   $('btn-clear-overrides').addEventListener('click', () => {
     sch.clearOverrides(settings.schedule);
     save();
     renderSchedule();
-    syncCurrentPhaseDuration(game.round, game.phase);
+    syncCurrentDuration(game.round, phaseOf(game.step));
   });
 
   /* Opciones */
   const checks = {
-    'opt-autoadvance': 'autoAdvance', 'opt-autostart': 'autoStart', 'opt-alarm': 'alarm',
+    'opt-autoadvance': 'autoAdvance', 'opt-autostart': 'autoStart',
+    'opt-night-fx': 'nightEffect', 'opt-day-bells': 'dayBells',
     'opt-keepawake': 'keepAwake', 'opt-shuffle': 'shuffle', 'opt-resume': 'resumePlaylist',
   };
   for (const [id, key] of Object.entries(checks)) {
@@ -562,6 +693,9 @@ function bindUi() {
       if (key === 'keepAwake') e.target.checked ? requestWakeLock() : releaseWakeLock();
     });
   }
+  $('btn-test-night-fx').addEventListener('click', () => { unlockOnce(); nightStinger(); });
+  $('btn-test-bells').addEventListener('click', () => { unlockOnce(); cathedralBells(); });
+
   const numbers = {
     'opt-warning': 'warningSeconds', 'opt-fade': 'fadeSeconds',
     'opt-vol-night': 'volumeNight', 'opt-vol-day': 'volumeDay',
@@ -577,15 +711,14 @@ function bindUi() {
     openDrawer(false);
     playbackMemory.night = null;
     playbackMemory.day = null;
-    enterPhase(1, 'night', { autoStart: false });
+    enterNight(1, { autoStart: false, music: false });
     toast('Partida reiniciada');
   });
   $('btn-reset-all').addEventListener('click', () => {
     if (!confirm('¿Borrar toda la configuración guardada?')) return;
     resetAll();
     renderSettings();
-    renderSchedule();
-    enterPhase(1, 'night', { autoStart: false, music: false });
+    enterNight(1, { autoStart: false, music: false });
     toast('Configuración borrada');
   });
 
@@ -593,9 +726,9 @@ function bindUi() {
   document.addEventListener('keydown', (e) => {
     if (e.target.matches('input, select, textarea')) return;
     const keys = {
-      ' ': () => el.play.click(),
-      ArrowRight: nextPhase,
-      ArrowLeft: prevPhase,
+      ' ': onPrimary,
+      ArrowRight: nextStep,
+      ArrowLeft: prevStep,
       r: () => timer.reset({ autoStart: false }),
       R: () => timer.reset({ autoStart: false }),
       f: toggleFullscreen,
@@ -659,3 +792,5 @@ function toggleFullscreen() {
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
   else document.documentElement.requestFullscreen?.().catch(() => {});
 }
+
+init();

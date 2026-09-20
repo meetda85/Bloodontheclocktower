@@ -10,7 +10,7 @@
 <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
-<div id="app" data-phase="night">
+<div id="app" data-phase="night" data-step="night">
 
   <header class="topbar">
     <div class="brand"><span class="brand-mark">🩸</span> Clocktower Timer</div>
@@ -30,22 +30,24 @@
       <h1 id="phase-label">Noche 1</h1>
     </div>
 
-    <div id="clock" class="clock">10:00</div>
+    <div id="clock" class="clock">00:00</div>
+    <p id="clock-caption" class="clock-caption"></p>
 
     <div class="progress"><div id="progress-bar" class="progress-bar"></div></div>
 
     <div id="now-playing" class="now-playing">—</div>
 
     <div class="controls">
-      <button id="btn-minus" class="ctl">−1 min</button>
+      <button id="btn-minus" class="ctl only-timed">−1 min</button>
       <button id="btn-play" class="ctl ctl-primary">▶ Iniciar</button>
-      <button id="btn-plus" class="ctl">+1 min</button>
+      <button id="btn-plus" class="ctl only-timed">+1 min</button>
     </div>
 
     <div class="controls controls-secondary">
-      <button id="btn-prev" class="ctl ctl-ghost">⏮ Fase anterior</button>
-      <button id="btn-reset" class="ctl ctl-ghost">↺ Reiniciar fase</button>
-      <button id="btn-next" class="ctl ctl-ghost">Siguiente fase ⏭</button>
+      <button id="btn-prev" class="ctl ctl-ghost">⏮ Atrás</button>
+      <button id="btn-reset" class="ctl ctl-ghost only-timed">↺ Reiniciar fase</button>
+      <button id="btn-replay-fx" class="ctl ctl-ghost only-dawn">🔊 Repetir efecto</button>
+      <button id="btn-next" class="ctl ctl-ghost">Siguiente ⏭</button>
       <button id="btn-music" class="ctl ctl-ghost">⏸ Música</button>
       <button id="btn-skip-track" class="ctl ctl-ghost">⏭ Canción</button>
       <label class="vol">
@@ -133,6 +135,11 @@
 
   <!-- Temporizadores -->
   <section class="tab-panel" data-panel="timers">
+    <div class="field check">
+      <input id="opt-untimed-night" type="checkbox" />
+      <label for="opt-untimed-night">La noche no lleva tiempo: la cierra el narrador con un botón</label>
+    </div>
+
     <div class="grid-2">
       <div class="field">
         <label for="sch-start">Duración de la 1.ª ronda (min)</label>
@@ -184,15 +191,21 @@
   <section class="tab-panel" data-panel="options">
     <div class="field check">
       <input id="opt-autoadvance" type="checkbox" />
-      <label for="opt-autoadvance">Pasar solo a la siguiente fase al acabar el tiempo</label>
+      <label for="opt-autoadvance">Al acabar el día, caer solo en la noche siguiente</label>
     </div>
     <div class="field check">
       <input id="opt-autostart" type="checkbox" />
-      <label for="opt-autostart">Arrancar el temporizador automáticamente al cambiar de fase</label>
+      <label for="opt-autostart">Arrancar el reloj del día automáticamente</label>
     </div>
     <div class="field check">
-      <input id="opt-alarm" type="checkbox" />
-      <label for="opt-alarm">Campanada al terminar el tiempo</label>
+      <input id="opt-night-fx" type="checkbox" />
+      <label for="opt-night-fx">Efecto siniestro al cerrar la noche</label>
+      <button id="btn-test-night-fx" class="mini-btn">Probar</button>
+    </div>
+    <div class="field check">
+      <input id="opt-day-bells" type="checkbox" />
+      <label for="opt-day-bells">Campanas de catedral al acabar el día</label>
+      <button id="btn-test-bells" class="mini-btn">Probar</button>
     </div>
     <div class="field check">
       <input id="opt-keepawake" type="checkbox" />

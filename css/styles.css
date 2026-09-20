@@ -26,6 +26,12 @@
   --glow: rgba(255, 171, 61, .30);
   --bg-grad: radial-gradient(120% 100% at 50% 0%, #34231a 0%, #0c0805 60%);
 }
+/* Amanecer: el narrador cuenta lo que pasó por la noche. */
+#app[data-phase="dawn"] {
+  --accent: #ff6b6b;
+  --glow: rgba(255, 107, 107, .32);
+  --bg-grad: radial-gradient(120% 100% at 50% 0%, #3a1622 0%, #0a0509 60%);
+}
 
 * { box-sizing: border-box; }
 
@@ -122,6 +128,31 @@ body {
 .clock.is-warning { color: #ffd166; }
 .clock.is-over { color: var(--danger); animation: pulse 1s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: .35; } }
+
+/* Controles que solo tienen sentido en unas fases u otras. */
+.only-timed, .only-dawn { display: none; }
+#app[data-step="day"] .only-timed,
+#app[data-step="night-timed"] .only-timed,
+#app[data-step="dawn"] .only-dawn { display: inline-flex; align-items: center; }
+
+.clock-caption {
+  margin: 0;
+  min-height: 1.2em;
+  font-size: clamp(.8rem, 1.8vh, 1rem);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* En la noche abierta el reloj solo informa: que no robe protagonismo. */
+#app[data-step="night"] .clock { font-size: min(18vh, 16vw); opacity: .5; font-weight: 600; }
+#app[data-step="dawn"] .clock { font-size: min(18vh, 16vw); opacity: .35; font-weight: 600; }
+#app[data-step="night"] .progress,
+#app[data-step="dawn"] .progress { visibility: hidden; }
+
+#app[data-step="night"] .ctl-primary,
+#app[data-step="dawn"] .ctl-primary { min-height: 84px; font-size: clamp(1.05rem, 2.6vh, 1.5rem); }
 
 .progress {
   width: min(900px, 92%);
@@ -311,6 +342,7 @@ hr { border: none; border-top: 1px solid var(--line); margin: 22px 0; }
 .schedule input[type="number"] { min-height: 44px; width: 100%; max-width: 120px; }
 .schedule input.is-override { border-color: var(--accent); color: var(--accent); }
 .schedule td.round-cell { white-space: nowrap; color: var(--muted); }
+.schedule .muted-cell { color: var(--muted); font-size: .85rem; font-style: italic; }
 
 @media (max-width: 720px) {
   .brand { display: none; }

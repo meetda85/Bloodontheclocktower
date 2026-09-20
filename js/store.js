@@ -23,14 +23,16 @@ export const defaults = {
     step: 2,         // minutos que baja en cada ronda
     min: 6,          // suelo: nunca baja de aquí
     rounds: 12,      // rondas listadas en la tabla
-    applyTo: 'night',// 'night' | 'day' | 'both' — a qué fase se aplica la progresión
+    applyTo: 'day',  // 'night' | 'day' | 'both' — a qué fase se aplica la progresión
     fixed: 5,        // duración de la fase que no sigue la progresión
     overrides: {},   // { "2": { night: 20, day: 7 } } — valores fijados a mano
   },
   options: {
-    autoAdvance: true,     // al llegar a 0, pasa solo a la fase siguiente
-    autoStart: true,       // arranca el reloj al entrar en una fase
-    alarm: true,           // campanada final
+    untimedNight: true,    // la noche no lleva cuenta atrás: la cierra el narrador
+    autoAdvance: true,     // al acabar el día, cae la noche sola
+    autoStart: true,       // arranca el reloj al entrar en el día
+    nightEffect: true,     // golpe siniestro al cerrar la noche
+    dayBells: true,        // campanas de catedral al acabar el día
     keepAwake: true,       // Screen Wake Lock
     shuffle: true,
     resumePlaylist: true,  // continuar la lista donde se quedó
@@ -66,11 +68,23 @@ function merge(base, saved) {
   return out;
 }
 
+/**
+ * Configuraciones guardadas antes de que la noche dejara de llevar tiempo: la
+ * progresión (10, 8, 6…) estaba puesta en la noche y ahora le toca al día.
+ */
+function migrate(saved) {
+  if (saved?.options && !('untimedNight' in saved.options)) {
+    saved.schedule = saved.schedule || {};
+    if (!saved.schedule.applyTo || saved.schedule.applyTo === 'night') saved.schedule.applyTo = 'day';
+  }
+  return saved;
+}
+
 function read() {
   let value;
   try {
     const raw = localStorage.getItem(KEY);
-    value = raw ? merge(defaults, JSON.parse(raw)) : structuredClone(defaults);
+    value = raw ? merge(defaults, migrate(JSON.parse(raw))) : structuredClone(defaults);
   } catch {
     value = structuredClone(defaults);
   }
