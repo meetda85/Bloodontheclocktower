@@ -2,9 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    # GitHub Pages solo admite despliegues desde la rama por defecto del
-    # repositorio, que aquí es la rama de trabajo de Claude.
-    branches: [main, master, 'claude/spotify-blood-clock-tower-app-cic5b5']
+    branches: [main, master, 'claude/**']
   workflow_dispatch:
 
 permissions:
@@ -14,10 +12,15 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  # Sin cancelar: si llegan dos pushes a la vez (rama de trabajo y main), el
+  # segundo esperaría su turno en vez de abortar el despliegue que va en serio.
+  cancel-in-progress: false
 
 jobs:
   deploy:
+    # GitHub Pages solo acepta despliegues desde la rama por defecto del
+    # repositorio; desde cualquier otra, el entorno los rechaza al instante.
+    if: github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
     environment:
       name: github-pages
