@@ -21,8 +21,15 @@ Temporizador por fases con banda sonora de **Spotify** para dirigir partidas de
 - 🔊 Suena en la propia tablet (reproductor integrado) o en cualquier otro dispositivo Spotify: altavoz, móvil, PC…
 - 🖥️ Aviso visual en los últimos segundos y pantalla siempre encendida.
 
-Los dos efectos (el golpe siniestro y las campanas) están **sintetizados con Web Audio**:
-no hay ficheros de sonido que descargar y suenan con una reverberación larga, de nave de piedra.
+Los dos efectos vienen **sintetizados con Web Audio** (no hay nada que descargar) y suenan
+con una reverberación larga, de nave de piedra. Pero cualquiera de los dos se puede sustituir
+por **tu propio audio**: en *Ajustes → Opciones*, botón **Elegir audio…**. El archivo se guarda
+en la tablet (IndexedDB) y sigue ahí sin conexión; también se puede indicar una ruta como
+`audio/fin-del-dia.mp3` si prefieres subir el fichero al repositorio y tenerlo en todos los
+dispositivos.
+
+**La música de la fase siguiente espera a que el efecto termine**, así que nunca se pisan.
+Un audio de un minuto retrasa la música ese minuto; cualquier botón del juego lo corta.
 
 No necesita servidor, ni instalación, ni `npm`: son ficheros estáticos (HTML + CSS + JavaScript).
 

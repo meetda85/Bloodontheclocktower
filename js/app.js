@@ -15,7 +15,8 @@
 import { settings, save, resetAll } from './store.js';
 import * as sch from './schedule.js';
 import { createTimer, formatClock } from './timer.js';
-import { nightStinger, cathedralBells, unlock as unlockAudio } from './audio.js';
+import { playEffect, stopEffect, unlock as unlockAudio } from './audio.js';
+import { saveSound, clearSound, getSound } from './sounds.js';
 import * as sp from './spotify.js';
 
 /* ── Atajos al DOM ───────────────────────────────────────── */
@@ -49,6 +50,7 @@ const game = {
   musicPaused: false,
   volume: settings.options.volumeNight,
   endFadeDone: false,     // el silencio previo al cero solo se lanza una vez
+  seq: 0,                 // cada cambio de paso invalida lo que quedara en vuelo
 };
 
 /** Dónde se quedó cada lista, para poder retomarla. */
@@ -90,6 +92,7 @@ async function init() {
 function enterNight(round, { autoStart = true, music = true } = {}) {
   game.round = Math.max(1, round);
   game.step = settings.options.untimedNight ? 'night' : 'night-timed';
+  game.seq += 1;
 
   if (settings.options.untimedNight) {
     timer.setStopwatch({ autoStart });
@@ -118,13 +121,23 @@ function startNight() {
 function enterDawn({ effect = true } = {}) {
   timer.pause();
   game.step = 'dawn';
+  game.seq += 1;
   renderStep();
-  if (effect && settings.options.nightEffect) { unlockOnce(); nightStinger(); }
-  // La noche se corta rápido (el golpe la tapa) y el día entra subiendo.
-  playPhaseMusic('day', {
-    fadeIn: Number(settings.options.dayRiseSeconds) || 0,
-    fadeOut: 1,
-  }).catch(showError);
+  runDawn(game.seq, effect).catch(showError);
+}
+
+async function runDawn(seq, effect) {
+  // La música nocturna se va primero: el efecto tiene que oírse limpio.
+  await stopMusic(1);
+  if (seq !== game.seq) return;
+
+  if (effect && settings.options.nightEffect) {
+    unlockOnce();
+    await playEffect('night', { url: settings.sounds.night.url });
+    if (seq !== game.seq) return;
+  }
+  // Y ahora sí, el día entra desde cero y va subiendo.
+  await playPhaseMusic('day', { fadeIn: Number(settings.options.dayRiseSeconds) || 0 });
 }
 
 /** Arranca el reloj del día y sube la música del todo, sin esperar al fundido. */
@@ -132,6 +145,7 @@ function enterDay(round) {
   game.round = Math.max(1, round);
   game.step = 'day';
   game.endFadeDone = false;
+  game.seq += 1;
   timer.setCountdown(sch.msFor(settings.schedule, game.round, 'day'), { autoStart: true });
   renderStep();
   requestWakeLock();
@@ -147,24 +161,44 @@ function enterDay(round) {
 }
 
 function handleTimerEnd() {
-  if (game.step === 'day') {
-    if (settings.options.dayBells) cathedralBells();
-    if (settings.options.autoAdvance) enterNight(game.round + 1);
-  } else if (game.step === 'night-timed') {
-    enterDawn();
-  }
+  if (game.step === 'day') runDayEnd(game.round + 1).catch(showError);
+  else if (game.step === 'night-timed') enterDawn();
+}
+
+/**
+ * Cierre del día: silencio, campanadas enteras y, cuando acaban, la noche.
+ * La pantalla pasa a la noche enseguida; solo la música espera al sonido.
+ */
+async function runDayEnd(nextRound) {
+  await stopMusic(0.4);
+
+  const sound = settings.options.dayBells
+    ? playEffect('dayEnd', { url: settings.sounds.dayEnd.url })
+    : Promise.resolve();
+
+  const advance = settings.options.autoAdvance;
+  if (advance) enterNight(nextRound, { music: false });
+
+  const seq = game.seq;
+  await sound;
+  if (seq !== game.seq || !advance) return;
+  await playPhaseMusic('night');
+}
+
+/** Apaga y pausa lo que esté sonando, recordando por dónde iba. */
+async function stopMusic(seconds) {
+  if (!game.musicPhase || game.musicPaused) return;
+  await rememberPhase(game.musicPhase);
+  const deviceId = activeDeviceId();
+  await sp.fadeVolume(game.volume, 0, seconds, deviceId);
+  await sp.pause(deviceId);
+  game.musicPaused = true;
+  updateMusicButton();
 }
 
 /** Unos segundos antes del cero: la música se apaga y se pausa. */
-async function silenceBeforeDayEnd(seconds) {
-  if (!game.musicPhase || game.musicPaused) return;
-  const deviceId = activeDeviceId();
-  try {
-    await sp.fadeVolume(game.volume, 0, seconds, deviceId);
-    await sp.pause(deviceId);
-    game.musicPaused = true;
-    updateMusicButton();
-  } catch { /* si falla, al menos el reloj sigue su curso */ }
+function silenceBeforeDayEnd(seconds) {
+  stopMusic(seconds).catch(() => { /* si falla, el reloj sigue su curso */ });
 }
 
 function nextStep() {
@@ -183,6 +217,7 @@ function prevStep() {
 /** El botón grande hace lo que toque en cada paso. */
 function onPrimary() {
   unlockOnce();
+  stopEffect();
   switch (game.step) {
     case 'night':
       if (timer.running) enterDawn();
@@ -309,6 +344,13 @@ async function rememberPhase(phase) {
   }
 }
 
+let volumeWarned = false;
+function warnIfVolumeBlocked() {
+  if (volumeWarned || !sp.isVolumeBlocked()) return;
+  volumeWarned = true;
+  toast('Este dispositivo de Spotify no deja que la app cambie su volumen: no habrá fundidos. Prueba con «esta tablet» en Ajustes.', true);
+}
+
 async function playPhaseMusic(phase, { fadeIn = null, fadeOut = null } = {}) {
   if (!sp.isConnected()) return;
 
@@ -352,6 +394,7 @@ async function playPhaseMusic(phase, { fadeIn = null, fadeOut = null } = {}) {
   setVolumeUi(target);
   updateMusicButton();
   await sp.fadeVolume(0, target, rise, deviceId);
+  warnIfVolumeBlocked();
 }
 
 async function toggleMusic() {
@@ -500,6 +543,19 @@ function renderSettings() {
   $('opt-vol-day').value = o.volumeDay;
 }
 
+/** Enseña de dónde sale cada efecto: archivo propio, ruta o sintetizado. */
+async function renderSoundSources() {
+  const synth = { night: 'efecto siniestro sintetizado', dayEnd: 'campanas de catedral sintetizadas' };
+  for (const kind of ['night', 'dayEnd']) {
+    const stored = await getSound(kind).catch(() => null);
+    const url = settings.sounds[kind].url;
+    $(`snd-${kind}-url`).value = url;
+    $(`snd-${kind}-name`).textContent = stored?.name
+      ? `${stored.name} (guardado en esta tablet)`
+      : (url || synth[kind]);
+  }
+}
+
 function renderSchedule() {
   const rounds = Math.max(1, Math.min(30, Number(settings.schedule.rounds) || 12));
   el.scheduleBody.innerHTML = '';
@@ -570,9 +626,12 @@ function bindUi() {
   $('btn-plus').addEventListener('click', () => timer.adjust(60_000));
   $('btn-minus').addEventListener('click', () => timer.adjust(-60_000));
   $('btn-reset').addEventListener('click', () => timer.reset({ autoStart: false }));
-  $('btn-next').addEventListener('click', () => { unlockOnce(); nextStep(); });
-  $('btn-prev').addEventListener('click', () => { unlockOnce(); prevStep(); });
-  $('btn-replay-fx').addEventListener('click', () => { unlockOnce(); nightStinger(); });
+  $('btn-next').addEventListener('click', () => { unlockOnce(); stopEffect(); nextStep(); });
+  $('btn-prev').addEventListener('click', () => { unlockOnce(); stopEffect(); prevStep(); });
+  $('btn-replay-fx').addEventListener('click', () => {
+    unlockOnce();
+    playEffect('night', { url: settings.sounds.night.url }).catch(() => {});
+  });
   $('btn-music').addEventListener('click', () => { unlockOnce(); toggleMusic(); });
   $('btn-skip-track').addEventListener('click', () => sp.nextTrack(activeDeviceId()).catch(showError));
 
@@ -723,8 +782,43 @@ function bindUi() {
       if (key === 'keepAwake') e.target.checked ? requestWakeLock() : releaseWakeLock();
     });
   }
-  $('btn-test-night-fx').addEventListener('click', () => { unlockOnce(); nightStinger(); });
-  $('btn-test-bells').addEventListener('click', () => { unlockOnce(); cathedralBells(); });
+  $('btn-test-night-fx').addEventListener('click', () => {
+    unlockOnce();
+    playEffect('night', { url: settings.sounds.night.url }).catch(() => {});
+  });
+  $('btn-test-bells').addEventListener('click', () => {
+    unlockOnce();
+    playEffect('dayEnd', { url: settings.sounds.dayEnd.url }).catch(() => {});
+  });
+
+  /* Audio propio de cada efecto */
+  for (const kind of ['night', 'dayEnd']) {
+    $(`snd-${kind}-file`).addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try {
+        await saveSound(kind, file);
+        settings.sounds[kind].fileName = file.name;
+        save();
+        renderSoundSources();
+        toast(`Audio guardado: ${file.name}`);
+      } catch { showError(new Error('No se pudo guardar el audio en la tablet.')); }
+      e.target.value = '';
+    });
+    $(`snd-${kind}-clear`).addEventListener('click', async () => {
+      stopEffect();
+      await clearSound(kind);
+      settings.sounds[kind] = { url: '', fileName: '' };
+      save();
+      renderSoundSources();
+      toast('Vuelve el sonido sintetizado');
+    });
+    $(`snd-${kind}-url`).addEventListener('change', (e) => {
+      settings.sounds[kind].url = e.target.value.trim();
+      save();
+      renderSoundSources();
+    });
+  }
 
   const numbers = {
     'opt-warning': 'warningSeconds', 'opt-fade': 'fadeSeconds', 'opt-rise': 'dayRiseSeconds',
@@ -773,7 +867,7 @@ function bindUi() {
 function openDrawer(open) {
   $('drawer').hidden = !open;
   $('scrim').hidden = !open;
-  if (open) { renderSettings(); renderSchedule(); }
+  if (open) { renderSettings(); renderSchedule(); renderSoundSources().catch(() => {}); }
 }
 
 /* ── Utilidades ──────────────────────────────────────────── */

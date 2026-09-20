@@ -202,13 +202,35 @@
     </div>
     <div class="field check">
       <input id="opt-night-fx" type="checkbox" />
-      <label for="opt-night-fx">Efecto siniestro al cerrar la noche</label>
+      <label for="opt-night-fx">Sonido al cerrar la noche</label>
       <button id="btn-test-night-fx" class="mini-btn">Probar</button>
     </div>
+    <div class="field sound-source">
+      <p class="hint">Suena: <b id="snd-night-name">efecto siniestro sintetizado</b></p>
+      <div class="row">
+        <label class="mini-btn file-btn">Elegir audio…<input id="snd-night-file" type="file" accept="audio/*" /></label>
+        <button id="snd-night-clear" class="mini-btn">Volver al sintetizado</button>
+      </div>
+      <input id="snd-night-url" class="uri-input" type="text" spellcheck="false"
+             placeholder="o una ruta/URL de audio, p. ej. audio/noche.mp3" />
+    </div>
+
     <div class="field check">
       <input id="opt-day-bells" type="checkbox" />
-      <label for="opt-day-bells">Campanas de catedral al acabar el día</label>
+      <label for="opt-day-bells">Sonido al acabar el día</label>
       <button id="btn-test-bells" class="mini-btn">Probar</button>
+    </div>
+    <div class="field sound-source">
+      <p class="hint">Suena: <b id="snd-dayEnd-name">campanas de catedral sintetizadas</b></p>
+      <div class="row">
+        <label class="mini-btn file-btn">Elegir audio…<input id="snd-dayEnd-file" type="file" accept="audio/*" /></label>
+        <button id="snd-dayEnd-clear" class="mini-btn">Volver al sintetizado</button>
+      </div>
+      <input id="snd-dayEnd-url" class="uri-input" type="text" spellcheck="false"
+             placeholder="o una ruta/URL de audio, p. ej. audio/fin-del-dia.mp3" />
+      <p class="hint">El archivo se guarda en esta tablet. La música de la fase siguiente
+        espera a que el sonido termine, así que un audio largo retrasa la música otro tanto
+        (puedes cortarlo pulsando cualquier botón del juego).</p>
     </div>
     <div class="field check">
       <input id="opt-keepawake" type="checkbox" />

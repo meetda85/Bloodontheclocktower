@@ -344,6 +344,11 @@ input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accen
 .hint { margin: 8px 0 0; font-size: .85rem; line-height: 1.5; color: var(--muted); }
 .hint code { padding: 2px 6px; border-radius: 6px; background: var(--surface-2); font-size: .82rem; word-break: break-all; }
 
+.file-btn { display: inline-flex; align-items: center; cursor: pointer; }
+.file-btn input[type="file"] { display: none; }
+.sound-source { padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+.sound-source .hint { margin: 0 0 10px; }
+
 .mini-btn {
   min-height: 44px;
   padding: 0 14px;

@@ -18,6 +18,12 @@ export const defaults = {
     night: { uri: '', name: '' },
     day: { uri: '', name: '' },
   },
+  /* Audio propio de los efectos: el archivo vive en IndexedDB y aquí queda su
+     nombre (para enseñarlo) o una ruta/URL alternativa. */
+  sounds: {
+    night: { url: '', fileName: '' },
+    dayEnd: { url: '', fileName: '' },
+  },
   schedule: {
     start: 10,       // minutos de la primera ronda
     step: 2,         // minutos que baja en cada ronda

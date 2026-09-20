@@ -350,14 +350,28 @@ function isLocal(deviceId) {
  */
 let fadeToken = 0;
 
+/**
+ * Hay dispositivos de Spotify Connect (altavoces, televisores, algunos móviles)
+ * que rechazan que otra aplicación les toque el volumen. Cuando pasa, los
+ * fundidos son imposibles y conviene decirlo en vez de disimularlo.
+ */
+let volumeBlocked = false;
+export function isVolumeBlocked() { return volumeBlocked; }
+
 async function applyVolume(percent, deviceId) {
   const clamped = Math.max(0, Math.min(100, Math.round(percent)));
   if (isLocal(deviceId) && player) {
     await player.setVolume(clamped / 100).catch(() => {});
+    volumeBlocked = false;
     return;
   }
-  await api('/me/player/volume', { method: 'PUT', query: { volume_percent: clamped, device_id: deviceId } })
-    .catch(() => { /* algunos dispositivos no permiten cambiar el volumen remoto */ });
+  try {
+    await api('/me/player/volume', { method: 'PUT', query: { volume_percent: clamped, device_id: deviceId } });
+    volumeBlocked = false;
+  } catch (err) {
+    if (err.status === 403 || err.status === 404) volumeBlocked = true;
+    else throw err;
+  }
 }
 
 /** Fija el volumen ya, cortando cualquier fundido en marcha. */
@@ -367,17 +381,27 @@ export async function setVolume(percent, deviceId) {
 }
 
 /** Fundido lineal de volumen. Con dispositivos remotos usa pasos largos (límite de peticiones). */
+/**
+ * Fundido con curva cuadrática: el oído percibe la sonoridad más o menos como
+ * el cuadrado de la amplitud, así que una rampa recta suena a salto al final.
+ */
 export async function fadeVolume(from, to, seconds, deviceId) {
   if (seconds <= 0) { await setVolume(to, deviceId); return; }
   const token = ++fadeToken;
   const local = isLocal(deviceId);
-  const stepMs = local ? 60 : 400;
+  const stepMs = local ? 50 : 400;
   const steps = Math.max(1, Math.round((seconds * 1000) / stepMs));
+  const started = Date.now();
   for (let i = 1; i <= steps; i += 1) {
     if (token !== fadeToken) return;        // lo ha relevado otro fundido
-    await applyVolume(from + ((to - from) * i) / steps, deviceId);
+    // Se avanza por reloj real: en remoto cada paso es una petición y se retrasa.
+    const t = Math.min(1, (Date.now() - started) / (seconds * 1000));
+    const eased = to > from ? t * t : 1 - (1 - t) * (1 - t);
+    await applyVolume(from + (to - from) * eased, deviceId);
+    if (t >= 1) return;
     if (i < steps) await new Promise((r) => setTimeout(r, stepMs));
   }
+  if (token === fadeToken) await applyVolume(to, deviceId);
 }
 
 export async function transferTo(deviceId, { play = false } = {}) {

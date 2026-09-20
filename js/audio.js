@@ -1,12 +1,18 @@
 /**
- * Efectos de sonido sintetizados con Web Audio: no hace falta ningún fichero.
+ * Efectos de la partida.
  *
- *   nightStinger()   — golpe oscuro y siniestro para cerrar la noche.
- *   cathedralBells() — campanas graves de catedral al acabar el día.
+ *   playEffect('night')  — cierre de la noche.
+ *   playEffect('dayEnd') — cierre del día.
  *
- * Todo pasa por una reverberación larga (convolución con ruido decreciente),
- * que es lo que da la sensación de nave de piedra.
+ * Si el narrador ha elegido un audio propio, suena ese; si no, el sintetizado
+ * con Web Audio (golpe siniestro y campanas de catedral), que pasa por una
+ * reverberación larga —la sensación de nave de piedra— y un limitador.
+ *
+ * En los dos casos la promesa se resuelve cuando el efecto ha terminado, que es
+ * lo que permite que la música no se le eche encima.
  */
+
+import { soundUrl } from './sounds.js';
 
 let ctx = null;
 let bus = null;
@@ -196,4 +202,53 @@ export function cathedralBells({ tolls = 3, volume = 0.85, spacing = 2.7, root =
     // Cada campanada un pelín más floja y desafinada: no suena a máquina.
     toll(ac, out, start + i * spacing, volume * (1 - i * 0.07), root * (1 + (i % 2 ? 0.004 : -0.002)));
   }
+}
+
+/* ── Efectos con audio propio ────────────────────────────── */
+
+/** Duración aproximada de cada efecto sintetizado, en segundos. */
+const SYNTH_SECONDS = { night: 5.4, dayEnd: 9.6 };
+
+let pending = null;   // { audio, resolve } del efecto en curso
+
+/** Corta el efecto que esté sonando (y desbloquea a quien lo esperase). */
+export function stopEffect() {
+  if (!pending) return;
+  const { audio, resolve } = pending;
+  pending = null;
+  if (audio) { audio.pause(); audio.currentTime = 0; }
+  resolve();
+}
+
+function playFile(url) {
+  return new Promise((resolve) => {
+    stopEffect();
+    const audio = new Audio(url);
+    audio.preload = 'auto';
+    const done = () => { if (pending?.audio === audio) { pending = null; resolve(); } };
+    audio.addEventListener('ended', done);
+    audio.addEventListener('error', done);
+    pending = { audio, resolve };
+    audio.play().catch(done);
+  });
+}
+
+function waitSynth(seconds) {
+  return new Promise((resolve) => {
+    stopEffect();
+    const timer = setTimeout(() => { if (pending?.timer === timer) { pending = null; resolve(); } }, seconds * 1000);
+    pending = { audio: null, timer, resolve: () => { clearTimeout(timer); resolve(); } };
+  });
+}
+
+/**
+ * Lanza el efecto y resuelve cuando acaba.
+ * `url` es la ruta configurada a mano; tiene prioridad el archivo guardado.
+ */
+export async function playEffect(kind, { url = '' } = {}) {
+  const custom = (await soundUrl(kind)) || url;
+  if (custom) return playFile(custom);
+  if (kind === 'night') nightStinger();
+  else cathedralBells();
+  return waitSynth(SYNTH_SECONDS[kind] || 5);
 }
