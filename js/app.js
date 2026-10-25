@@ -85,6 +85,38 @@ async function init() {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && timer.running) requestWakeLock();
   });
+
+  setupInstall();
+}
+
+/**
+ * Instalación en la pantalla de inicio. El service worker además deja la app
+ * abrirse sin conexión: el reloj y los efectos funcionan igual (Spotify no,
+ * claro, que necesita internet).
+ */
+function setupInstall() {
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {});
+  }
+
+  let prompt = null;
+  const button = $('btn-install');
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    prompt = e;
+    button.hidden = false;
+  });
+  button.addEventListener('click', async () => {
+    if (!prompt) return;
+    button.hidden = true;
+    prompt.prompt();
+    await prompt.userChoice.catch(() => {});
+    prompt = null;
+  });
+  window.addEventListener('appinstalled', () => {
+    button.hidden = true;
+    toast('Instalada en la pantalla de inicio ✔');
+  });
 }
 
 /* ── Pasos del ciclo ─────────────────────────────────────── */

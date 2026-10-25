@@ -6,7 +6,13 @@
 <meta name="theme-color" content="#0b0d1a" />
 <meta name="description" content="Temporizador temático con música de Spotify para dirigir partidas de Blood on the Clocktower." />
 <title>Clocktower Timer · Blood on the Clocktower</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🩸</text></svg>" />
+<link rel="icon" href="icons/icon-192.png" />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Clocktower" />
 <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
@@ -19,6 +25,7 @@
       <span id="device-status" class="pill pill-muted" hidden></span>
     </div>
     <div class="topbar-actions">
+      <button id="btn-install" class="icon-btn" hidden>⬇️ Instalar</button>
       <button id="btn-fullscreen" class="icon-btn" title="Pantalla completa">⛶</button>
       <button id="btn-settings" class="icon-btn">⚙️ Ajustes</button>
     </div>
@@ -281,6 +288,11 @@
   </section>
 </aside>
 
+<script>
+  // El SDK de Spotify llama a esta función nada más cargar, antes de que exista
+  // el módulo: aquí se recoge el aviso para que no se pierda (ni dé error).
+  window.spotifySdkReady = new Promise((resolve) => { window.onSpotifyWebPlaybackSDKReady = resolve; });
+</script>
 <script src="https://sdk.scdn.co/spotify-player.js"></script>
 <script type="module" src="js/app.js"></script>
 </body>

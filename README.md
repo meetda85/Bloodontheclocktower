@@ -65,7 +65,23 @@ python3 -m http.server 8080 --bind 127.0.0.1
 
 Usa `127.0.0.1`, no `localhost`: Spotify solo acepta `https://` o la dirección de loopback.
 
-## 3. Configurar la app
+## 3. Instalarla en la tablet
+
+La app se instala desde el propio navegador, sin tiendas ni APK:
+
+- **Android (Chrome/Edge)**: abre la URL y pulsa **⬇️ Instalar** arriba a la derecha.
+  Si no aparece, menú **⋮ → Añadir a pantalla de inicio / Instalar aplicación**.
+- **iPad (Safari)**: botón **Compartir** (cuadrado con flecha) → **Añadir a pantalla de inicio**.
+
+Queda como una app más: icono propio, sin barra de direcciones y a pantalla completa.
+Un service worker guarda la aplicación en la tablet, así que **abre sin conexión** y el
+reloj y los efectos funcionan igual; solo la música necesita internet, por Spotify.
+Cada vez que se publica una versión nueva, se descarga sola al abrirla con conexión.
+
+> En iPad, el inicio de sesión de Spotify a veces no vuelve a la app instalada (es una
+> limitación de iOS). Si te pasa, conéctate desde Safari y usa la app desde ahí.
+
+## 4. Configurar la app
 
 1. Abre la app y pulsa **⚙️ Ajustes**.
 2. El **Client ID** ya viene puesto; si usas tu propia app de Spotify, sustitúyelo.
@@ -75,7 +91,7 @@ Usa `127.0.0.1`, no `localhost`: Spotify solo acepta `https://` o la dirección 
    de Spotify de cualquier playlist, álbum o artista). El botón **Probar** las prueba al vuelo.
 5. En **Temporizadores** ajusta la progresión y, si quieres, fija rondas concretas a mano.
 
-## 4. Dirigir la partida
+## 5. Dirigir la partida
 
 El botón grande hace siempre lo que toca en ese momento:
 
@@ -111,7 +127,7 @@ Los tiempos de la música se ajustan en *Ajustes → Opciones*: **la música del
 (15 s por defecto) y **fundido y silencio final** (3 s), que es tanto el fundido normal
 entre listas como el silencio que precede a las campanadas.
 
-## 5. Cómo se calculan las duraciones
+## 6. Cómo se calculan las duraciones
 
 Por defecto la noche no lleva reloj, así que la progresión se aplica al **día**.
 Para cada ronda, la fase elegida en *«La progresión se aplica a»* dura:
@@ -125,7 +141,7 @@ La otra fase usa la duración fija indicada al lado (y si es la noche y está ma
 «sin tiempo», simplemente no lleva reloj). Cualquier casilla escrita a mano
 manda sobre la fórmula, se marca en color y se guarda en la tablet.
 
-## 6. Notas
+## 7. Notas
 
 - La configuración, las listas y la sesión de Spotify se guardan en el navegador de la tablet
   (`localStorage`); no se envía nada a ningún servidor ajeno a Spotify.
@@ -140,6 +156,8 @@ manda sobre la fórmula, se marca en color y se guarda en la tablet.
 
 ```
 index.html        Interfaz
+manifest.webmanifest  Instalación en la pantalla de inicio
+sw.js             Service worker: la app abre sin conexión
 css/styles.css    Tema oscuro, dos paletas (noche y día)
 js/app.js         Estado de la partida, fases y enlace con la interfaz
 js/spotify.js     OAuth PKCE, Web API, Web Playback SDK y fundidos

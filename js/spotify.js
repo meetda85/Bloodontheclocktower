@@ -250,7 +250,7 @@ function emit(event, payload) { listeners[event]?.forEach((fn) => fn(payload)); 
 
 function whenSdkReady() {
   if (sdkReady) return sdkReady;
-  sdkReady = new Promise((resolve) => {
+  sdkReady = window.spotifySdkReady || new Promise((resolve) => {
     if (window.Spotify) return resolve();
     window.onSpotifyWebPlaybackSDKReady = () => resolve();
   });
