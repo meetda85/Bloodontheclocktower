@@ -46,6 +46,7 @@ export const defaults = {
     fadeSeconds: 3,        // fundido normal y silencio antes de acabar el día
     dayRiseSeconds: 15,    // lo que tarda la música del día en subir tras la noche
     volumeNight: 100,
+    volumeDawn: 30,        // mientras se narra lo que ha pasado por la noche
     volumeDay: 100,
   },
 };

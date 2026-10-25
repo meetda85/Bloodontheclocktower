@@ -62,6 +62,15 @@ let audioUnlocked = false;
 const timer = createTimer({ onTick: renderClock, onEnd: handleTimerEnd });
 
 const phaseOf = (step) => (step === 'day' ? 'day' : 'night');
+
+/** Qué lista le toca a cada paso (en el amanecer ya suena la del día). */
+const listFor = (step) => (step === 'day' || step === 'dawn' ? 'day' : 'night');
+
+/** Volumen de cada paso: la narración del amanecer tiene el suyo propio. */
+function volumeFor(step) {
+  if (step === 'dawn') return settings.options.volumeDawn;
+  return step === 'day' ? settings.options.volumeDay : settings.options.volumeNight;
+}
 const isNight = (step) => step === 'night' || step === 'night-timed';
 
 /* ── Arranque ────────────────────────────────────────────── */
@@ -168,8 +177,12 @@ async function runDawn(seq, effect) {
     await playEffect('night', { url: settings.sounds.night.url });
     if (seq !== game.seq) return;
   }
-  // Y ahora sí, el día entra desde cero y va subiendo.
-  await playPhaseMusic('day', { fadeIn: Number(settings.options.dayRiseSeconds) || 0 });
+  // El día entra desde cero y sube despacio, pero solo hasta el volumen de
+  // narración: lo que se tiene que oír ahora es el narrador.
+  await playPhaseMusic('day', {
+    fadeIn: Number(settings.options.dayRiseSeconds) || 0,
+    volume: settings.options.volumeDawn,
+  });
 }
 
 /** Arranca el reloj del día y sube la música del todo, sin esperar al fundido. */
@@ -183,7 +196,7 @@ function enterDay(round) {
   requestWakeLock();
 
   if (game.musicPhase === 'day' && !game.musicPaused) {
-    // La lista ya venía sonando desde el amanecer: solo hay que abrir el grifo.
+    // La lista ya venía sonando bajita desde el amanecer: se abre el grifo.
     const volume = settings.options.volumeDay;
     setVolumeUi(volume);
     sp.setVolume(volume, activeDeviceId()).catch(() => {});
@@ -290,8 +303,7 @@ function renderStep() {
   el.caption.textContent = info.caption;
   document.title = `${el.phaseLabel.textContent} · Clocktower Timer`;
 
-  const volume = phaseOf(game.step) === 'night' ? settings.options.volumeNight : settings.options.volumeDay;
-  if (game.step !== 'dawn') setVolumeUi(volume);
+  setVolumeUi(volumeFor(game.step));
   renderSchedule();
   renderClock({ mode: timer.mode, value: timer.value, durationMs: timer.durationMs, running: timer.running });
 }
@@ -383,14 +395,14 @@ function warnIfVolumeBlocked() {
   toast('Este dispositivo de Spotify no deja que la app cambie su volumen: no habrá fundidos. Prueba con «esta tablet» en Ajustes.', true);
 }
 
-async function playPhaseMusic(phase, { fadeIn = null, fadeOut = null } = {}) {
+async function playPhaseMusic(phase, { fadeIn = null, fadeOut = null, volume = null } = {}) {
   if (!sp.isConnected()) return;
 
   const uri = settings.playlists[phase].uri;
   const fade = Number(settings.options.fadeSeconds) || 0;
   const rise = fadeIn === null ? fade : fadeIn;
   const drop = fadeOut === null ? fade : fadeOut;
-  const target = phase === 'night' ? settings.options.volumeNight : settings.options.volumeDay;
+  const target = volume === null ? volumeFor(game.step) : volume;
 
   await rememberPhase(game.musicPhase);
 
@@ -419,6 +431,9 @@ async function playPhaseMusic(phase, { fadeIn = null, fadeOut = null } = {}) {
     deviceId,
     offsetUri: memory?.trackUri || '',
     positionMs: memory?.positionMs || 0,
+    // Sin nada que retomar, empieza por una pista al azar: si no, Spotify
+    // arranca siempre por la primera aunque el aleatorio esté activado.
+    random: !memory && settings.options.shuffle,
   });
 
   game.musicPhase = phase;
@@ -434,7 +449,7 @@ async function toggleMusic() {
   try {
     const deviceId = activeDeviceId();
     if (game.musicPaused || !game.musicPhase) {
-      if (!game.musicPhase) { await playPhaseMusic(phaseOf(game.step)); return; }
+      if (!game.musicPhase) { await playPhaseMusic(listFor(game.step)); return; }
       await sp.resume(deviceId);
       game.musicPaused = false;
     } else {
@@ -572,6 +587,7 @@ function renderSettings() {
   $('opt-fade').value = o.fadeSeconds;
   $('opt-rise').value = o.dayRiseSeconds;
   $('opt-vol-night').value = o.volumeNight;
+  $('opt-vol-dawn').value = o.volumeDawn;
   $('opt-vol-day').value = o.volumeDay;
 }
 
@@ -670,10 +686,12 @@ function bindUi() {
   el.volume.addEventListener('input', () => {
     game.volume = Number(el.volume.value);
     el.volumeOut.textContent = game.volume;
-    if (phaseOf(game.step) === 'night' && game.step !== 'dawn') settings.options.volumeNight = game.volume;
+    if (game.step === 'dawn') settings.options.volumeDawn = game.volume;
     else if (game.step === 'day') settings.options.volumeDay = game.volume;
+    else settings.options.volumeNight = game.volume;
     save();
     $('opt-vol-night').value = settings.options.volumeNight;
+    $('opt-vol-dawn').value = settings.options.volumeDawn;
     $('opt-vol-day').value = settings.options.volumeDay;
     sp.setVolume(game.volume, activeDeviceId());
   });
@@ -756,7 +774,9 @@ function bindUi() {
   for (const button of document.querySelectorAll('.btn-preview')) {
     button.addEventListener('click', () => {
       unlockOnce();
-      playPhaseMusic(button.dataset.phase).catch(showError);
+      const phase = button.dataset.phase;
+      const volume = phase === 'night' ? settings.options.volumeNight : settings.options.volumeDay;
+      playPhaseMusic(phase, { volume }).catch(showError);
     });
   }
 
@@ -854,7 +874,7 @@ function bindUi() {
 
   const numbers = {
     'opt-warning': 'warningSeconds', 'opt-fade': 'fadeSeconds', 'opt-rise': 'dayRiseSeconds',
-    'opt-vol-night': 'volumeNight', 'opt-vol-day': 'volumeDay',
+    'opt-vol-night': 'volumeNight', 'opt-vol-dawn': 'volumeDawn', 'opt-vol-day': 'volumeDay',
   };
   for (const [id, key] of Object.entries(numbers)) {
     $(id).addEventListener('change', (e) => {

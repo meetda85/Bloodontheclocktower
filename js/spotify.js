@@ -414,9 +414,35 @@ export async function setShuffle(state, deviceId) {
     .catch(() => { /* no todos los contextos admiten aleatorio */ });
 }
 
-export async function startContext({ contextUri, deviceId, offsetUri = '', positionMs = 0 }) {
+/**
+ * Cuántas pistas tiene una lista o un álbum. Spotify arranca un contexto por su
+ * primera pista aunque el aleatorio esté puesto (el aleatorio solo decide lo que
+ * viene después), así que hace falta el total para poder elegir dónde empezar.
+ */
+const contextSizes = new Map();
+
+export async function getContextSize(contextUri) {
+  if (contextSizes.has(contextUri)) return contextSizes.get(contextUri);
+  const [, kind, id] = (contextUri || '').split(':');
+  let total = 0;
+  try {
+    if (kind === 'playlist') total = (await api(`/playlists/${id}`, { query: { fields: 'tracks.total' } }))?.tracks?.total || 0;
+    else if (kind === 'album') total = (await api(`/albums/${id}`))?.tracks?.total || 0;
+  } catch {
+    total = 0;                      // sin dato: se arranca por el principio
+  }
+  contextSizes.set(contextUri, total);
+  return total;
+}
+
+export async function startContext({ contextUri, deviceId, offsetUri = '', positionMs = 0, random = false }) {
   const body = { context_uri: contextUri };
-  if (offsetUri) body.offset = { uri: offsetUri };
+  if (offsetUri) {
+    body.offset = { uri: offsetUri };
+  } else if (random) {
+    const total = await getContextSize(contextUri);
+    if (total > 1) body.offset = { position: Math.floor(Math.random() * total) };
+  }
   if (positionMs) body.position_ms = Math.max(0, Math.round(positionMs));
   await api('/me/player/play', { method: 'PUT', query: { device_id: deviceId }, body });
 }

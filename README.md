@@ -6,12 +6,15 @@ Temporizador por fases con banda sonora de **Spotify** para dirigir partidas de
 - 🌙 **La noche no lleva reloj**: suena la lista nocturna mientras despiertas a los
   personajes, y la cierras tú con un botón cuando has terminado.
 - 💀 Al cerrarla suena un **golpe oscuro y siniestro** y entra la lista del día
-  **subiendo poco a poco durante 15 segundos**, mientras cuentas lo que ha pasado.
-- ☀️ Pulsas *Iniciar temporizador del día*: la música salta al 100 % (aunque la
-  narración haya sido corta) y arranca la cuenta atrás de debate.
+  **subiendo poco a poco durante 15 segundos hasta el 30 %**, de fondo, mientras
+  cuentas lo que ha pasado.
+- ☀️ Pulsas *Iniciar temporizador del día*: la música salta al 100 % y arranca la
+  cuenta atrás de debate.
 - 🔔 Tres segundos antes del cero la música **se apaga y se pausa**; al llegar a cero
   suenan **tres campanadas graves de catedral** y cae la noche siguiente.
-- 🔊 La música suena siempre al 100 %; el deslizador queda para ajustar en caliente.
+- 🔊 La música suena al 100 % en la noche y en el día, y al 30 % mientras narras
+  (los tres son configurables). El deslizador ajusta en caliente el paso en curso.
+- 🔀 Cada lista empieza por una pista **al azar**, no siempre por la misma.
 - ⏱️ Cuenta atrás gigante, pensada para verse desde el otro lado de la mesa.
 - 📉 Progresión automática configurable: por defecto **10 min el primer día, −2 min por
   ronda, con suelo de 6 min**.
@@ -99,7 +102,7 @@ El botón grande hace siempre lo que toca en ese momento:
 |---|---|---|
 | Noche (parada) | ▶ Empezar la noche | arranca la lista nocturna y el cronómetro |
 | Noche (en curso) | 🌒 Finalizó la noche | golpe siniestro y entra el día subiendo |
-| Amanece | ☀️ Iniciar temporizador del día | música al 100 % y cuenta atrás del día |
+| Amanece | ☀️ Iniciar temporizador del día | música del 30 % al 100 % y cuenta atrás |
 | Día | ⏸ Pausa / ▶ Iniciar | para y reanuda el reloj |
 
 En la noche y al amanecer ese botón ocupa el sitio del reloj, bien grande; el tiempo
