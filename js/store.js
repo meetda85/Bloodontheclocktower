@@ -21,8 +21,8 @@ export const defaults = {
   /* Audio propio de los efectos: el archivo vive en IndexedDB y aquí queda su
      nombre (para enseñarlo) o una ruta/URL alternativa. */
   sounds: {
-    night: { url: '', fileName: '' },
-    dayEnd: { url: '', fileName: '' },
+    night: { url: 'audio/noche-golpe.mp3', fileName: '' },
+    dayEnd: { url: 'audio/dia-campanas.mp3', fileName: '' },
   },
   schedule: {
     start: 10,       // minutos de la primera ronda
@@ -39,6 +39,7 @@ export const defaults = {
     autoStart: true,       // arranca el reloj al entrar en el día
     nightEffect: true,     // golpe siniestro al cerrar la noche
     dayBells: true,        // campanas de catedral al acabar el día
+    soundsPreset: 1,       // marca de qué efectos venían de serie
     keepAwake: true,       // Screen Wake Lock
     shuffle: true,
     resumePlaylist: true,  // continuar la lista donde se quedó
@@ -89,6 +90,12 @@ function migrate(saved) {
   if (saved?.options && !('dayRiseSeconds' in saved.options)) {
     saved.options.volumeNight = 100;
     saved.options.volumeDay = 100;
+  }
+  // Ahora hay efectos grabados de serie: los adopta quien no haya puesto otros.
+  if (saved?.options && !('soundsPreset' in saved.options)) {
+    for (const kind of ['night', 'dayEnd']) {
+      if (saved.sounds?.[kind] && !saved.sounds[kind].url) delete saved.sounds[kind].url;
+    }
   }
   return saved;
 }

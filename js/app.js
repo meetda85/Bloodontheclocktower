@@ -639,13 +639,17 @@ function renderSettings() {
 /** Enseña de dónde sale cada efecto: archivo propio, ruta o sintetizado. */
 async function renderSoundSources() {
   const synth = { night: 'efecto siniestro sintetizado', dayEnd: 'campanas de catedral sintetizadas' };
+  const stock = {
+    'audio/noche-golpe.mp3': 'golpe grave grabado (incluido)',
+    'audio/dia-campanas.mp3': 'tres campanadas grabadas (incluido)',
+  };
   for (const kind of ['night', 'dayEnd']) {
     const stored = await getSound(kind).catch(() => null);
     const url = settings.sounds[kind].url;
     $(`snd-${kind}-url`).value = url;
     $(`snd-${kind}-name`).textContent = stored?.name
       ? `${stored.name} (guardado en esta tablet)`
-      : (url || synth[kind]);
+      : (stock[url] || url || synth[kind]);
   }
 }
 

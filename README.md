@@ -24,8 +24,10 @@ Temporizador por fases con banda sonora de **Spotify** para dirigir partidas de
 - 🔊 Suena en la propia tablet (reproductor integrado) o en cualquier otro dispositivo Spotify: altavoz, móvil, PC…
 - 🖥️ Aviso visual en los últimos segundos y pantalla siempre encendida.
 
-Los dos efectos vienen **sintetizados con Web Audio** (no hay nada que descargar) y suenan
-con una reverberación larga, de nave de piedra. Pero cualquiera de los dos se puede sustituir
+Los dos efectos son **grabaciones de dominio público (CC0)** que vienen incluidas: un golpe
+grave de 4,6 s para la noche y tres campanadas de 13,6 s para el día (créditos en
+[`audio/README.md`](audio/README.md)). Debajo siguen estando los **sintetizados con Web
+Audio**, que se recuperan con el botón *Volver al sintetizado*. Y cualquiera de los dos se puede sustituir
 por **tu propio audio**: en *Ajustes → Opciones*, botón **Elegir audio…**. El archivo se guarda
 en la tablet (IndexedDB) y sigue ahí sin conexión; también se puede indicar una ruta como
 `audio/fin-del-dia.mp3` si prefieres subir el fichero al repositorio y tenerlo en todos los
