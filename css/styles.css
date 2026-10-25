@@ -252,6 +252,13 @@ body {
   cursor: pointer;
 }
 
+.update-pill {
+  color: var(--accent-ink);
+  background: var(--accent);
+  border-color: transparent;
+  font-weight: 600;
+}
+
 .vol { display: flex; align-items: center; gap: 10px; padding: 0 12px; color: var(--muted); }
 .vol input[type="range"] { width: clamp(110px, 16vw, 200px); accent-color: var(--accent); height: 36px; }
 .vol output { min-width: 3ch; font-variant-numeric: tabular-nums; }

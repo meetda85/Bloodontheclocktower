@@ -27,6 +27,21 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+
+      # Sella la publicación: la app enseña esta cadena y la compara con
+      # version.json para saber si la tablet va con la última versión.
+      - name: Sellar la versión
+        run: |
+          set -eu
+          FECHA="$(git show -s --format=%cd --date=format-local:'%Y-%m-%d %H:%M' "$GITHUB_SHA")"
+          CORTO="$(echo "$GITHUB_SHA" | cut -c1-7)"
+          VERSION="$FECHA UTC · $CORTO"
+          printf '{\n  "version": "%s",\n  "sha": "%s"\n}\n' "$VERSION" "$CORTO" > version.json
+          sed -i "s|__APP_VERSION__|$VERSION|" index.html
+          echo "Publicando versión: $VERSION"
+        env:
+          TZ: UTC
+
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

@@ -96,6 +96,51 @@ async function init() {
   });
 
   setupInstall();
+  setupVersion();
+}
+
+/* ── Versiones: la que corre aquí y la última publicada ──── */
+
+const runningVersion = document.querySelector('meta[name="app-version"]')?.content || '';
+const isStamped = runningVersion && !runningVersion.startsWith('__');
+
+function setupVersion() {
+  $('ver-running').textContent = isStamped ? runningVersion : 'desarrollo (sin publicar)';
+  $('btn-check-version').addEventListener('click', () => checkVersion({ loud: true }));
+  $('btn-update-app').addEventListener('click', applyUpdate);
+  $('btn-update-pill').addEventListener('click', applyUpdate);
+  checkVersion();
+}
+
+/** Pregunta a la web cuál es la última versión publicada y la compara. */
+async function checkVersion({ loud = false } = {}) {
+  const latestEl = $('ver-latest');
+  try {
+    const res = await fetch(`version.json?t=${Date.now()}`, { cache: 'no-store' });
+    if (!res.ok) throw new Error(String(res.status));
+    const { version } = await res.json();
+    latestEl.textContent = version;
+
+    const outdated = isStamped && version && version !== runningVersion;
+    $('btn-update-app').hidden = !outdated;
+    $('btn-update-pill').hidden = !outdated;
+    if (loud) toast(outdated ? 'Hay una versión más nueva publicada' : 'Estás en la última versión ✔');
+  } catch {
+    latestEl.textContent = 'sin conexión';
+    if (loud) toast('No se pudo comprobar: sin conexión', true);
+  }
+}
+
+/** Tira la copia guardada y recarga, para traerse la versión publicada. */
+async function applyUpdate() {
+  toast('Actualizando…');
+  try {
+    const keys = await caches.keys();
+    await Promise.all(keys.map((key) => caches.delete(key)));
+    const registration = await navigator.serviceWorker?.getRegistration();
+    await registration?.update();
+  } catch { /* sin service worker: basta con recargar */ }
+  location.reload();
 }
 
 /**
@@ -919,7 +964,12 @@ function bindUi() {
 function openDrawer(open) {
   $('drawer').hidden = !open;
   $('scrim').hidden = !open;
-  if (open) { renderSettings(); renderSchedule(); renderSoundSources().catch(() => {}); }
+  if (open) {
+    renderSettings();
+    renderSchedule();
+    renderSoundSources().catch(() => {});
+    checkVersion();
+  }
 }
 
 /* ── Utilidades ──────────────────────────────────────────── */

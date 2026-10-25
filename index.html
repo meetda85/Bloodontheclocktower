@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
 <meta name="theme-color" content="#0b0d1a" />
+<meta name="app-version" content="__APP_VERSION__" />
 <meta name="description" content="Temporizador temático con música de Spotify para dirigir partidas de Blood on the Clocktower." />
 <title>Clocktower Timer · Blood on the Clocktower</title>
 <link rel="icon" href="icons/icon-192.png" />
@@ -25,6 +26,7 @@
       <span id="device-status" class="pill pill-muted" hidden></span>
     </div>
     <div class="topbar-actions">
+      <button id="btn-update-pill" class="icon-btn update-pill" hidden>⬇️ Nueva versión</button>
       <button id="btn-install" class="icon-btn" hidden>⬇️ Instalar</button>
       <button id="btn-fullscreen" class="icon-btn" title="Pantalla completa">⛶</button>
       <button id="btn-settings" class="icon-btn">⚙️ Ajustes</button>
@@ -276,6 +278,19 @@
       <div class="field">
         <label for="opt-vol-day">Volumen de día (%)</label>
         <input id="opt-vol-day" type="number" min="0" max="100" step="1" />
+      </div>
+    </div>
+
+    <hr />
+    <div class="field">
+      <label>Versión</label>
+      <p class="hint">
+        En esta tablet: <b id="ver-running">—</b><br />
+        Última publicada: <b id="ver-latest">comprobando…</b>
+      </p>
+      <div class="row">
+        <button id="btn-check-version" class="ctl ctl-ghost">↻ Comprobar</button>
+        <button id="btn-update-app" class="ctl ctl-primary" hidden>⬇️ Actualizar ahora</button>
       </div>
     </div>
 

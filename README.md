@@ -81,6 +81,10 @@ Un service worker guarda la aplicación en la tablet, así que **abre sin conexi
 reloj y los efectos funcionan igual; solo la música necesita internet, por Spotify.
 Cada vez que se publica una versión nueva, se descarga sola al abrirla con conexión.
 
+**¿Qué versión tengo?** En *Ajustes → Opciones*, al final, aparece la versión que corre
+en esa tablet y la última publicada. Si no coinciden, sale un botón **Actualizar ahora**
+(y un aviso en la barra de arriba) que tira la copia guardada y recarga.
+
 > En iPad, el inicio de sesión de Spotify a veces no vuelve a la app instalada (es una
 > limitación de iOS). Si te pasa, conéctate desde Safari y usa la app desde ahí.
 

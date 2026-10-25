@@ -44,7 +44,9 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;
-  if (new URL(request.url).origin !== self.location.origin) return;   // Spotify y demás
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;                    // Spotify y demás
+  if (url.pathname.endsWith('version.json')) return;                  // siempre de la red
 
   event.respondWith(
     fetch(request)
