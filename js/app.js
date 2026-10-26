@@ -276,7 +276,7 @@ async function runDayEnd(nextRound) {
 }
 
 /** Apaga y pausa lo que esté sonando, recordando por dónde iba. */
-async function stopMusic(seconds) {
+async function doStopMusic(seconds) {
   if (!game.musicPhase || game.musicPaused) return;
   await rememberPhase(game.musicPhase);
   const deviceId = activeDeviceId();
@@ -440,7 +440,29 @@ function warnIfVolumeBlocked() {
   toast('Este dispositivo de Spotify no deja que la app cambie su volumen: no habrá fundidos. Prueba con «esta tablet» en Ajustes.', true);
 }
 
-async function playPhaseMusic(phase, { fadeIn = null, fadeOut = null, volume = null } = {}) {
+/**
+ * Cola de operaciones de música. Arrancar una lista son varias llamadas
+ * seguidas (bajar, poner a cero, cambiar de contexto, subir); si dos tandas
+ * se cruzan, se pisan y la música acaba muda o sin arrancar. Aquí van de una
+ * en una, y un fallo de una no bloquea la siguiente.
+ */
+let musicQueue = Promise.resolve();
+
+function queueMusic(task) {
+  const run = () => task().catch(showError);
+  musicQueue = musicQueue.then(run, run);
+  return musicQueue;
+}
+
+function playPhaseMusic(phase, options = {}) {
+  return queueMusic(() => doPlayPhaseMusic(phase, options));
+}
+
+function stopMusic(seconds) {
+  return queueMusic(() => doStopMusic(seconds));
+}
+
+async function doPlayPhaseMusic(phase, { fadeIn = null, fadeOut = null, volume = null } = {}) {
   if (!sp.isConnected()) return;
 
   const uri = settings.playlists[phase].uri;
@@ -471,15 +493,23 @@ async function playPhaseMusic(phase, { fadeIn = null, fadeOut = null, volume = n
   if (settings.options.shuffle) await sp.setShuffle(true, deviceId);
 
   const memory = settings.options.resumePlaylist ? playbackMemory[phase] : null;
-  await sp.startContext({
-    contextUri: uri,
-    deviceId,
-    offsetUri: memory?.trackUri || '',
-    positionMs: memory?.positionMs || 0,
-    // Sin nada que retomar, empieza por una pista al azar: si no, Spotify
-    // arranca siempre por la primera aunque el aleatorio esté activado.
-    random: !memory && settings.options.shuffle,
-  });
+  try {
+    await sp.startContext({
+      contextUri: uri,
+      deviceId,
+      offsetUri: memory?.trackUri || '',
+      positionMs: memory?.positionMs || 0,
+      // Sin nada que retomar, empieza por una pista al azar: si no, Spotify
+      // arranca siempre por la primera aunque el aleatorio esté activado.
+      random: !memory && settings.options.shuffle,
+    });
+  } catch (err) {
+    // Si no arranca, al menos que no se quede el volumen a cero: con el
+    // mando a cero, darle a reproducir a mano tampoco se oiría.
+    await sp.setVolume(target, deviceId).catch(() => {});
+    playbackMemory[phase] = null;      // lo recordado puede ser lo que falla
+    throw err;
+  }
 
   game.musicPhase = phase;
   game.musicPaused = false;

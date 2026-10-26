@@ -166,23 +166,34 @@ async function tokenRequest(body) {
   return data;
 }
 
-async function accessToken() {
+/**
+ * Refresco único: Spotify rota el refresh_token en cada uso, así que dos
+ * refrescos a la vez dejan uno de los dos inservible y tumban la sesión.
+ * Quien llegue mientras hay uno en marcha espera a ese mismo.
+ */
+let refreshing = null;
+
+async function accessToken({ force = false } = {}) {
   if (!token) throw new SpotifyError('Conecta primero con Spotify.', { needsAuth: true });
-  if (token.access_token && Date.now() < token.expires_at - 30_000) return token.access_token;
+  if (!force && token.access_token && Date.now() < token.expires_at - 30_000) return token.access_token;
   if (!token.refresh_token) throw new SpotifyError('La sesión de Spotify caducó.', { needsAuth: true });
 
-  const data = await tokenRequest(new URLSearchParams({
-    client_id: token.client_id,
-    grant_type: 'refresh_token',
-    refresh_token: token.refresh_token,
-  }));
-  writeToken({
-    ...token,
-    ...data,
-    refresh_token: data.refresh_token || token.refresh_token,
-    expires_at: Date.now() + data.expires_in * 1000,
-  });
-  return token.access_token;
+  if (!refreshing) {
+    refreshing = tokenRequest(new URLSearchParams({
+      client_id: token.client_id,
+      grant_type: 'refresh_token',
+      refresh_token: token.refresh_token,
+    })).then((data) => {
+      writeToken({
+        ...token,
+        ...data,
+        refresh_token: data.refresh_token || token.refresh_token,
+        expires_at: Date.now() + data.expires_in * 1000,
+      });
+      return token.access_token;
+    }).finally(() => { refreshing = null; });
+  }
+  return refreshing;
 }
 
 /* ── Web API ─────────────────────────────────────────────── */
@@ -207,6 +218,12 @@ async function api(path, { method = 'GET', body, query, retry = true } = {}) {
     const wait = Number(res.headers.get('Retry-After') || 1);
     await new Promise((r) => setTimeout(r, Math.min(wait, 5) * 1000));
     return api(path, { method, body, query, retry: false });
+  }
+
+  if (res.status === 401 && retry) {
+    // Puede ser solo que el token acabe de caducar: se renueva y se reintenta.
+    const renewed = await accessToken({ force: true }).then(() => true).catch(() => false);
+    if (renewed) return api(path, { method, body, query, retry: false });
   }
 
   const data = await res.json().catch(() => null);
@@ -257,8 +274,24 @@ function whenSdkReady() {
   return sdkReady;
 }
 
+/** Espera a que el SDK anuncie un dispositivo listo. */
+function waitForDevice(timeoutMs = 10_000) {
+  return new Promise((resolve) => {
+    if (localDeviceId) return resolve(localDeviceId);
+    const started = Date.now();
+    const poll = setInterval(() => {
+      if (localDeviceId || Date.now() - started > timeoutMs) { clearInterval(poll); resolve(localDeviceId); }
+    }, 150);
+  });
+}
+
 export async function initPlayer({ volume = 0.5, name = 'Clocktower Timer' } = {}) {
-  if (player) return localDeviceId;
+  if (player && localDeviceId) return localDeviceId;
+  if (player) {
+    // El reproductor existe pero Spotify lo dio de baja: se reconecta.
+    await player.connect().catch(() => {});
+    return waitForDevice();
+  }
   await whenSdkReady();
   if (!window.Spotify) throw new SpotifyError('No se pudo cargar el reproductor de Spotify.');
 
@@ -296,14 +329,7 @@ export async function initPlayer({ volume = 0.5, name = 'Clocktower Timer' } = {
   if (!ok) throw new SpotifyError('El navegador no pudo iniciar el reproductor de Spotify.');
 
   // El evento "ready" llega de forma asíncrona.
-  await new Promise((resolve) => {
-    if (localDeviceId) return resolve();
-    const started = Date.now();
-    const poll = setInterval(() => {
-      if (localDeviceId || Date.now() - started > 10_000) { clearInterval(poll); resolve(); }
-    }, 150);
-  });
-  return localDeviceId;
+  return waitForDevice();
 }
 
 export function disconnectPlayer() {
@@ -435,6 +461,30 @@ export async function getContextSize(contextUri) {
   return total;
 }
 
+/**
+ * Spotify desactiva un dispositivo que lleva un rato en pausa — y entre el
+ * silencio del final del día y las campanadas pasa casi medio minuto. Cuando
+ * eso ocurre, reproducir devuelve 404: hay que despertarlo y reintentar.
+ */
+async function wakeDevice(deviceId) {
+  if (!deviceId) return;
+  if (deviceId === localDeviceId && player) {
+    await player.connect().catch(() => {});
+  }
+  await api('/me/player', { method: 'PUT', body: { device_ids: [deviceId], play: false } }).catch(() => {});
+  await new Promise((resolve) => setTimeout(resolve, 700));
+}
+
+async function play(deviceId, body) {
+  try {
+    await api('/me/player/play', { method: 'PUT', query: { device_id: deviceId }, body });
+  } catch (err) {
+    if (err.status !== 404 && err.status !== 403) throw err;
+    await wakeDevice(deviceId);
+    await api('/me/player/play', { method: 'PUT', query: { device_id: deviceId }, body });
+  }
+}
+
 export async function startContext({ contextUri, deviceId, offsetUri = '', positionMs = 0, random = false }) {
   const body = { context_uri: contextUri };
   if (offsetUri) {
@@ -444,11 +494,11 @@ export async function startContext({ contextUri, deviceId, offsetUri = '', posit
     if (total > 1) body.offset = { position: Math.floor(Math.random() * total) };
   }
   if (positionMs) body.position_ms = Math.max(0, Math.round(positionMs));
-  await api('/me/player/play', { method: 'PUT', query: { device_id: deviceId }, body });
+  await play(deviceId, body);
 }
 
 export async function resume(deviceId) {
-  await api('/me/player/play', { method: 'PUT', query: { device_id: deviceId } });
+  await play(deviceId, undefined);
 }
 
 export async function pause(deviceId) {
